@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Wellilam",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "homePage": "https://github.com/Wellilam/st-karma-cycle",
     "description": "识别正文与世界书内容，追踪角色善恶与因果伏笔，通过延时概率检定机制在后续剧情中自然触发报应反噬或正向回馈。"
 }

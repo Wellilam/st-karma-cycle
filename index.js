@@ -490,15 +490,15 @@ const KARMA_CORE_RULES = `=== 因果审计核心法则（先看森林，再算�
    - 动笔前先用人类读者的常识，结合原著全貌（若为同人）与苦主视角，给每个角色做【全局因果定性】：在截至当前的故事里，谁是亏欠苦主的失职/负心/加害方？谁是功过交织的复杂方？谁是真正无愧于人的施恩方？先定下每个角色合理的【目标净值区间】（如：重度亏欠者 −40 ~ −70，中度亏欠 −20 ~ −35，功过相抵 −10 ~ +10，纯粹大善 +30 ~ +60）。
 3. 【上下文连坐，穿透伪善与滤镜】：
    - 任何行为都必须放在完整前因后果与人物关系网里定性，绝不可脱离上下文孤立给分：
-   - 凡是伴随遗弃、偏心、冷暴力、双标、越界或私欲的“表面体面/局部好意”（例如：给个名分却长期不养、冷落本该负责的人却去悉心照料旁人、出于私情护短却伤害无辜或同门、谈恋爱层面的深情苦等），本质全属于亏欠或私人执念链条的一部分，严禁单独拆出正分去冲淡其罪责！
+   - 凡是伴随失职、背弃、偏心、冷暴力、双标、越界或私欲的“表面体面/局部好意/纯个人情感执念”，本质全属于亏欠或私念链条的一部分，严禁单独拆出正分去冲淡其罪责！
 4. 【总分常识自检（输出前必做）】：
    - 列出拟定的事件条目后，必须在脑中核对每个角色的【正负分加总结果】与【各苦主名下的净值】：
-   - 自问一句：“算出来的这个最终总分，符合正常读者对这个人的常识判断吗？”如果一个明显亏欠苦主、严重失职或背负血债的人，加总后居然接近 0（平澜）甚至成了正分，或者两件轻重悬殊的事分值倒挂，必须立即删掉不合理的加分、调整分值比重，直到最终总分与人物定性完全吻合！`;
+   - 自问一句：“算出来的这个最终总分，符合正常读者对这个人的常识判断吗？”如果一个明显亏欠苦主、严重失职或背负血债的人，加总后居然接近 0（平澜）甚至成了正分，或者不同事件之间的分值轻重比例失衡倒挂，必须立即删掉不合理的加分、调整分值比重，直到最终总分与人物定性完全吻合！`;
 
 function buildRulesBlock(compact = false) {
     const custom = String(getSettings().customRules || '').trim();
     const core = compact
-        ? '禁止逐句机械抠字眼打分！先站在苦主与全局常识视角对角色做【整体因果定性】，再拆解事件（target 写明对象）；凡伴随遗弃、双标偏心、越界护短或纯属恋爱深情的表面行为，一律不计正分；输出前必须自检每个角色的总分是否符合人类常识判断。'
+        ? '禁止逐句机械抠字眼打分！先站在苦主与全局常识视角对角色做【整体因果定性】，再拆解事件（target 写明对象）；凡伴随失职、背弃、双标偏心、越界或纯属个人情感执念的表面行为，一律不计正分；输出前必须自检每个角色的总分与轻重比例是否符合人类常识判断。'
         : KARMA_CORE_RULES;
     return custom
         ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
@@ -553,11 +553,7 @@ function sortKarmaItemsForRepayment(items) {
     return [...items].sort((a, b) => Number(isRepay(a)) - Number(isRepay(b)));
 }
 
-const CUSTOM_RULES_PLACEHOLDER = `例如：
-- 养育之恩视为重恩（+30 起步），恩将仇报加倍扣分
-- 为保护家人说谎不算负面
-- 修鬼道本身不扣分，只看用它做了什么
-- 魏无羡与江澄之间的恩怨要逐件对冲，不要只给一方记分`;
+const CUSTOM_RULES_PLACEHOLDER = '在此补充当前故事的特殊判定要求（选填，留空即按通用法则执行）…';
 
 function bindRulesTextarea(id) {
     const el = document.getElementById(id);
@@ -1410,8 +1406,8 @@ ${buildRulesBlock()}
 === 输出要求（先在 <think> 中完成「全局定性 → 拆账 → 总分自检」，再输出 JSON） ===
 1. 在输出 JSON 前，必须先输出一个 <think>...</think> 块，按以下三步完成常识裁定：
    - 【第一步：时间线与人物全局定性】：写明当前故事所处时间点（未来的事不入账）；用人类读者的客观常识（穿透作者洗白与原著记忆）直接给每位核心角色定性——谁是主要亏欠方/失职者？谁是苦主？谁是功过相抵者？先定下每人合理的【目标总分区间】（如：重度亏欠 −50、功过交织 −10 ~ +10）。
-   - 【第二步：上下文连坐筛查】：剔除所有脱离上下文的“伪善加分”（如收而不养的空头名分、厚此薄彼的偏心宠爱、恋爱脑护短、受刑吃苦等）。
-   - 【第三步：总分与轻重比对自检】：把拟定条目的分值加总核对——各角色最终算出的净值是否符合第一步的定性？不同事件之间的分值轻重是否合乎常理（严禁出现“遗弃十几年扣得比抚养几年还少”这类倒挂）？若不符，当场修正分值！
+   - 【第二步：上下文连坐筛查】：剔除所有脱离上下文的“伪善/表面加分”与纯个人情感执念。
+   - 【第三步：总分与轻重比对自检】：把拟定条目的分值加总核对——各角色最终算出的净值是否符合第一步的定性？不同事件之间的分值轻重比例是否合乎常理（防止轻重倒挂）？若不符，当场修正分值！
 2. <think> 结束后，输出最终校准后的纯 JSON 数组（单条分值 ±5 ~ ±50）：
 <think>
 1. 时间线与人物全局定性：...
@@ -2162,9 +2158,53 @@ function initUI() {
     if (!document.getElementById('st-karma-fab')) {
         const fab = document.createElement('div');
         fab.id = 'st-karma-fab';
-        fab.title = '因果回响 · Karma Echo';
+        fab.title = '因果回响 · Karma Echo（可按住拖动位置）';
         fab.innerHTML = `<span class="ke-fab-char">因</span><span class="karma-fab-badge" style="display:none;">0</span>`;
-        fab.addEventListener('click', openKarmaModal);
+        if (typeof settings.fabLeft === 'number' && typeof settings.fabTop === 'number') {
+            fab.style.right = 'auto';
+            fab.style.bottom = 'auto';
+            fab.style.left = `${Math.max(4, Math.min(window.innerWidth - 48, settings.fabLeft))}px`;
+            fab.style.top = `${Math.max(4, Math.min(window.innerHeight - 48, settings.fabTop))}px`;
+        }
+        let dragging = false;
+        let moved = false;
+        let startX = 0, startY = 0, origLeft = 0, origTop = 0;
+        fab.addEventListener('pointerdown', (e) => {
+            dragging = true;
+            moved = false;
+            const rect = fab.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            origLeft = rect.left;
+            origTop = rect.top;
+            fab.setPointerCapture?.(e.pointerId);
+        });
+        fab.addEventListener('pointermove', (e) => {
+            if (!dragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moved = true;
+            if (!moved) return;
+            const nl = Math.max(4, Math.min(window.innerWidth - 46, origLeft + dx));
+            const nt = Math.max(4, Math.min(window.innerHeight - 46, origTop + dy));
+            fab.style.right = 'auto';
+            fab.style.bottom = 'auto';
+            fab.style.left = `${nl}px`;
+            fab.style.top = `${nt}px`;
+        });
+        fab.addEventListener('pointerup', (e) => {
+            if (!dragging) return;
+            dragging = false;
+            fab.releasePointerCapture?.(e.pointerId);
+            if (moved) {
+                const rect = fab.getBoundingClientRect();
+                settings.fabLeft = Math.round(rect.left);
+                settings.fabTop = Math.round(rect.top);
+                saveSettings();
+            } else {
+                openKarmaModal();
+            }
+        });
         document.body.appendChild(fab);
     }
 
