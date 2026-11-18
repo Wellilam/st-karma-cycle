@@ -383,22 +383,20 @@ async function buildFullLoreContext() {
 /**
  * 因果记账核心原则（判定、开局扫描、正文内嵌标签共用）
  */
-const KARMA_CORE_RULES = `=== 因果记账原则（务必遵守） ===
-1. 一事一条：每条记录只写一个具体行为。同一角色的功与过必须拆成多条，严禁把好事和坏事合并成一条，也严禁把一整段前史打包成一条大分。单条分值 ±5 ~ ±50。
-2. 写明对象：用 target 写清这件事是对谁做的（针对群体或世界可写“众人”）。
-3. 恩怨双向：两人之间的恩与债要双向记账，各记在行为人名下，最后由系统自动相抵。
-   例：甲家抚养乙长大（甲方 +）；乙冲动出头连累甲家覆灭（乙方 −）；甲之子为救乙引开追兵被擒（甲之子 +）；乙剖丹相赠（乙方 +）；甲之子后来率众围剿乙（甲之子 −）——应分成五条分别记录。
-4. 失责与不作为同样要记：身为父母、家主、师长、首领、伴侣，该尽的责任没尽到——偏心冷落、疏于教养、该说的话不说、该护的人不护、放任矛盾激化、袖手旁观——记在失责者名下，对象是因此受损的人。分量按身份责任与实际后果判断，一般轻于蓄意加害，但造成长期伤害的不可轻放。
-5. 一事多面：同一件事可能对不同的人分别构成恩与伤，要按对象分别记录。
-   例：家主收养故人之子并加以偏爱（对养子 +）；同时长期冷落、贬低亲生儿子（对亲子 −）；对夫妻矛盾避而不谈、任其恶化（对妻子 −）——这是三条，不能只记第一条。
-6. 报恩与报复：报恩照常按行为本身的分量打分并写明对象即可，系统会自动用它抵扣对方的旧恩，你不需要自己打折；恩将仇报从重；以怨报怨可酌情减轻。
-7. 动机与后果并重：好心办坏事按实际后果扣分，但轻于蓄意作恶；被迫之举酌情减轻。
-8. 不要只盯主角：配角、长辈、已故之人同样要评估，他们的作为与失责往往正是后来恩怨的根源。`;
+const KARMA_CORE_RULES = `=== 因果审计与记账铁律（务必严格执行） ===
+1. 撕掉叙事滤镜（去主角光环）：不要被设定集或正文里的悲情渲染、苦衷洗白、温润人设或作者偏爱带偏。无论动机多伟大、姿态多无辜，只要客观上越界惹祸、连累他人买单、损害无辜，就必须记负面（−）；反之，无论性格多嘴硬暴躁，只要客观上付出了代价、护住了他人，就必须记正向（+）。
+2. 三层追责溯源（不只看表象）：
+   - 【直接行为】：守信、相助、牺牲、护短担责（+）；欺瞒、背叛、算计、加害、恩将仇报、道德绑架、精神打压（−）。
+   - 【祸端与连累】：发生灾祸时，不能只记直接行凶者；若是某人冲动越界、一意孤行引火烧身，却让亲友/同门/家族替其承受了惨痛代价，必须给惹祸连累者记一笔负面亏欠（−）。
+   - 【上位者失职与不作为】：凡有家庭失和、组织不公或晚辈悲剧，必须向上追查父母、家主、师长、掌权者或伴侣是否存在偏心冷落、贬低打压、和稀泥、享红利却逃避责任等隐性失职。长期失职造成心理创伤或关系崩裂的，必须记负面（−15 ~ −40）。
+3. 一事多面，按对象拆条：同一件事若对甲是恩、对乙是伤，必须按不同受事对象（target）拆成多条独立记录；严禁把同一角色的功与过合并成一条，也严禁把几件事揉成一条笼统的大分。单条分值范围 ±5 ~ ±50。
+4. 恩怨双向对账：两人或两方之间的恩惠、亏欠、偿还、报复，各记在行为人名下并写明对象（target）。哪怕后来有人还了恩或报了仇，此前的旧恩与旧怨也必须如实列出，由系统自动计算双边冲抵，切勿自行漏记前因。
+5. 不漏配角与前人：长辈、配角、原住民乃至已故之人的关键作为与失责往往是整个故事恩怨的源头，必须一并建档评估。`;
 
 function buildRulesBlock(compact = false) {
     const custom = String(getSettings().customRules || '').trim();
     const core = compact
-        ? '功与过分条记录、写明对象（target）；失责、偏心、不作为也要记；同一件事对不同的人分别记恩与伤；恩怨双向记账，报恩照常打分（系统自动抵扣旧恩），恩将仇报从重。'
+        ? '撕掉主角与悲情滤镜，只看客观行为与谁承担苦果；功与过分条记录并写明对象（target）；惹祸连累他人买单、上位者/父母偏心冷落与失职不作为均须记负面（−）；同一件事对不同人分别记恩与伤；恩怨双向记账（系统自动抵扣旧恩），恩将仇报从重。'
         : KARMA_CORE_RULES;
     return custom
         ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
@@ -406,20 +404,28 @@ function buildRulesBlock(compact = false) {
 }
 
 /**
- * 汇总角色之间尚未结清的恩怨（按 行为人→对象 分组并给出净值）
+ * 汇总角色之间的恩怨往来（按 行为人→对象 分组，保留已抵还旧恩的历史明细供模型与面板参考）
  */
 function collectRelations(ledger) {
     const pairs = new Map();
     for (const c of Object.values(ledger.characters || {})) {
         for (const s of (c.seeds || [])) {
-            if (s.settled || !s.target) continue;
-            const rem = s.remainingDelta ?? s.delta;
-            if (!rem) continue;
+            if (!s.target) continue;
+            // 被天道轮盘核销完的旧账不再计入当前未结关系，但“报恩抵还”的往来仍展示在人情账上
+            if (s.settled && !s.repaid && !s.repaidAmount) continue;
+            const val = s.repaid ? s.delta : (s.remainingDelta ?? s.delta);
+            if (!val) continue;
             const key = `${c.name}→${s.target}`;
-            if (!pairs.has(key)) pairs.set(key, { from: c.name, to: s.target, net: 0, items: [] });
+            if (!pairs.has(key)) pairs.set(key, { from: c.name, to: s.target, net: 0, rawNet: 0, items: [] });
             const p = pairs.get(key);
-            p.net += rem;
-            p.items.push({ deed: s.deed, value: rem });
+            p.net += val;
+            p.rawNet += s.delta;
+            p.items.push({
+                deed: s.deed,
+                value: s.delta,
+                rem: s.remainingDelta ?? s.delta,
+                repaidNote: s.repaidNote || (s.repaidUsed ? `对方已偿 ${s.repaidUsed}` : ''),
+            });
         }
     }
     return [...pairs.values()];
@@ -428,12 +434,21 @@ function collectRelations(ledger) {
 function buildRelationSummary(ledger, maxLines = 30) {
     return collectRelations(ledger)
         .slice(0, maxLines)
-        .map(p => `- ${p.from} → ${p.to}：${p.items.map(i => `${i.deed} ${formatKarma(i.value)}`).join('；')}（净 ${formatKarma(p.net)}）`)
+        .map(p => `- ${p.from} → ${p.to}：${p.items.map(i => `${i.deed} ${formatKarma(i.value)}${i.repaidNote ? `[${i.repaidNote}]` : ''}`).join('；')}（累计 ${formatKarma(p.rawNet)}）`)
         .join('\n');
 }
 
 function readTarget(item) {
     return String(item.target || item.to || item.object || '').trim();
+}
+
+/**
+ * 批量入账前按“施恩/前因在前、报恩/偿还在后”排序，防止模型逆序输出时漏掉报恩抵扣
+ */
+function sortKarmaItemsForRepayment(items) {
+    if (!Array.isArray(items)) return [];
+    const isRepay = (it) => /报恩|偿还|还债|抵偿|换丹|剖丹|赎罪|补偿|回报/.test(`${it?.deed || ''} ${it?.rule || ''}`);
+    return [...items].sort((a, b) => Number(isRepay(a)) - Number(isRepay(b)));
 }
 
 const CUSTOM_RULES_PLACEHOLDER = `例如：
@@ -491,8 +506,9 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
 
     const target = options.target ? String(options.target).trim() : '';
 
-    // 报恩抵债：A 对 B 行善时，如果 B 之前对 A 有未结的恩情，先用来偿还旧恩。
-    // 偿还的部分双方都不再计功（B 的恩已得回报，A 的付出只是还债），只有超出旧恩的部分才算 A 的新功德。
+    // 报恩抵债：A 对 B 行善时，如果 B 之前对 A 有未偿还的恩情，A 的付出优先用于“还人情债”。
+    // 注意：只扣减报恩者 A 的“额外功德溢价”（因为还债是本分，只有超出旧恩的部分才算 A 的额外善功），
+    // 绝不抹杀施恩者 B 当初行善的个人功德（B 自己的善举仍留在 B 的因果秤上抵御恶报）。
     let repaid = 0;
     const repaidFrom = [];
     if (numDelta > 0 && target) {
@@ -500,27 +516,20 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
         for (const other of Object.values(ledger.characters)) {
             if (other.name === cleanName || !matches(other.name, target)) continue;
             const favors = (other.seeds || [])
-                .filter(s => !s.settled && (s.remainingDelta ?? s.delta) > 0 && matches(cleanName, s.target))
+                .filter(s => !s.settled && (s.delta > 0) && ((s.delta - (s.repaidUsed || 0)) > 0) && matches(cleanName, s.target))
                 .sort((a, b) => (a.turn || 0) - (b.turn || 0));
             for (const fav of favors) {
                 const left = numDelta - repaid;
                 if (left <= 0) break;
-                const rem = fav.remainingDelta ?? fav.delta;
-                const take = Math.min(rem, left);
-                fav.remainingDelta = rem - take;
-                other.totalKarma -= take;
-                if (fav.remainingDelta <= 0) {
-                    fav.remainingDelta = 0;
-                    fav.settled = true;
-                    fav.repaid = true;
-                    fav.settledTurn = turn;
-                }
+                const avail = fav.delta - (fav.repaidUsed || 0);
+                const take = Math.min(avail, left);
+                fav.repaidUsed = (fav.repaidUsed || 0) + take;
                 repaid += take;
                 repaidFrom.push(`${other.name}「${fav.deed.replace(/^\[前史\]\s*/, '')}」${take}`);
             }
         }
     }
-    charRec.totalKarma -= repaid; // 已偿还的部分不计入新功德
+    charRec.totalKarma -= repaid; // 偿还旧恩的部分不计入 A 的新功德溢价
 
     const seed = {
         id: `seed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -711,10 +720,12 @@ function buildSettlementDirective(charRec, roulette, rollValue = 1, isManual = f
     const tierInfo = getKarmaTierInfo(signedMagnitude);
 
     const describeSeed = s => {
-        const turnLabel = s.turn ? `第${s.turn}回合` : '前史';
+        const isPrehistory = String(s.deed || '').startsWith('[前史]');
+        const turnLabel = isPrehistory ? '前史' : `第${s.turn || 0}回合`;
+        const cleanDeed = String(s.deed || '').replace(/^\[前史\]\s*/, '');
         const targetNote = s.target ? `（对${s.target}）` : '';
         const ruleNote = s.ruleRef ? `（关联：${s.ruleRef}）` : '';
-        return `「${turnLabel}：${s.deed}${targetNote}${ruleNote}」`;
+        return `「${turnLabel}：${cleanDeed}${targetNote}${ruleNote}」`;
     };
 
     const deedSummaries = targetSeeds.slice(0, 5).map(describeSeed);
@@ -891,7 +902,7 @@ function syncExtensionPrompts() {
 
     if (settings.judgeMode === 'inline' || settings.judgeMode === 'hybrid') {
         const inlineRulePrompt = `[因果回响记录协议]
-在每次正文回复的最末尾，请结合当前世界观准则评估出场角色在本轮是否有显著的正向行为（守信、助人、承担责任、真诚付出等）或负面行为（欺瞒、背叛、伤害无辜、算计利用、违背契约等）。
+在每次正文回复的最末尾，请结合当前世界观准则评估出场角色在本轮是否有显著的正向行为（守信、相助、担责、牺牲等）或负面行为（欺瞒、背叛、加害、算计、惹祸连累他人、上位者/长辈偏心冷落与失职不作为等）。
 若有显著行为，请在正文结束后另起一行附上隐藏标签（若无明显善恶事件则输出 <karma>[]</karma>）：
 <karma>[{"char":"行为人","target":"行为对象","delta":-20,"deed":"简述本回合结下的因果事件","rule":"关联的准则或原因","delay":3}]</karma>
 （说明：delta 正数为正向积累 +5~+50，负数为负面积累 -5~-50；delay 为回旋镖潜伏回合数，常规为 2~5）
@@ -925,7 +936,7 @@ function parseAndStripInlineKarmaTags(messageObj) {
         const rawInner = (match[1] || '').trim();
         if (!rawInner || rawInner === '[]') continue;
 
-        const parsedList = tryParseKarmaJson(rawInner);
+        const parsedList = sortKarmaItemsForRepayment(tryParseKarmaJson(rawInner));
         for (const item of parsedList) {
             const charName = item.char || item.character || item.name;
             const delta = Number(item.delta ?? item.score ?? 0);
@@ -1029,7 +1040,7 @@ function previewReply(rawText, n = 80) {
     return t.length > n ? `${t.slice(0, n)}…` : (t || '（空）');
 }
 
-const JUDGE_SYSTEM_PROMPT = '你是一个冷静克制的叙事因果分析引擎，不参与角色扮演。只输出符合要求的纯 JSON 数组，不输出任何解释、前言或多余文字。';
+const JUDGE_SYSTEM_PROMPT = '你是一个敏锐、客观、绝不偏袒主角的“叙事因果与人情账本”审计引擎，不参与角色扮演。你的任务是穿透文本的温情包装、悲情滤镜或主观洗白，精准识别每个角色的客观行为、惹祸连累、上位者失职、亏欠与恩义，只输出符合要求的纯 JSON 数组，不输出任何解释、前言或多余文字。';
 
 async function runLLMPrompt(promptText) {
     const settings = getSettings();
@@ -1167,7 +1178,7 @@ ${buildRulesBlock()}
             return [];
         }
 
-        for (const item of items) {
+        for (const item of sortKarmaItemsForRepayment(items)) {
             const charName = item.char || item.character || item.name;
             const delta = Number(item.delta ?? item.score ?? 0);
             const deed = item.deed || item.reason || '';
@@ -1263,7 +1274,7 @@ ${buildRulesBlock()}
             return;
         }
 
-        for (const item of items) {
+        for (const item of sortKarmaItemsForRepayment(items)) {
             const charName = item.char || item.character || item.name;
             const delta = Number(item.delta ?? item.score ?? 0);
             const deed = item.deed || item.reason || '角色前史伏笔';
@@ -1583,10 +1594,11 @@ function renderKarmaModalContent() {
                     const deltaText = (!s.settled && remNow !== s.delta)
                         ? `<span class="ke-muted" style="text-decoration:line-through; margin-right:4px;">${formatKarma(s.delta)}</span>${formatKarma(remNow)}`
                         : formatKarma(s.delta);
+                    const repaidUsedNote = (!s.repaidNote && s.repaidUsed) ? `对方已偿 ${s.repaidUsed}` : '';
                     return `<div class="ke-seed ${sTone} ${state}">
                         <i class="ke-seed-dot"></i>
                         <div class="ke-seed-body">
-                            <span class="ke-seed-turn">T${s.turn || 0}</span>${s.target ? `<span class="ke-seed-target">→ ${escapeHtml(s.target)}</span>` : ''}${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}${s.repaidNote ? `<span class="ke-muted"> · ${escapeHtml(s.repaidNote)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
+                            <span class="ke-seed-turn">T${s.turn || 0}</span>${s.target ? `<span class="ke-seed-target">→ ${escapeHtml(s.target)}</span>` : ''}${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}${s.repaidNote ? `<span class="ke-muted"> · ${escapeHtml(s.repaidNote)}</span>` : ''}${repaidUsedNote ? `<span class="ke-muted"> · ${escapeHtml(repaidUsedNote)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
                         </div>
                         <span class="ke-seed-delta">${deltaText}</span>
                     </div>`;
@@ -1625,7 +1637,7 @@ function renderKarmaModalContent() {
                         if (!rels.length) return '';
                         return `<div class="ke-relations">
                             <span class="ke-relations-label">恩怨相抵</span>
-                            ${rels.map(p => `<span class="ke-rel tone-${karmaTone(p.net, 1)}" title="${escapeHtml(p.items.map(i => `${i.deed}  ${formatKarma(i.value)}`).join('\n'))}">→ ${escapeHtml(p.to)} <b>${formatKarma(p.net)}</b>${p.items.length > 1 ? `<i>${p.items.length} 笔</i>` : ''}</span>`).join('')}
+                            ${rels.map(p => `<span class="ke-rel tone-${karmaTone(p.rawNet, 1)}" title="${escapeHtml(p.items.map(i => `${i.deed}  ${formatKarma(i.value)}${i.repaidNote ? ` (${i.repaidNote})` : ''}`).join('\n'))}">→ ${escapeHtml(p.to)} <b>${formatKarma(p.rawNet)}</b>${p.items.length > 1 ? `<i>${p.items.length} 笔</i>` : ''}</span>`).join('')}
                         </div>`;
                     })()}
 
