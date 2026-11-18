@@ -776,31 +776,88 @@ function parseAndStripInlineKarmaTags(messageObj) {
     return recordedEvents;
 }
 
-function tryParseKarmaJson(rawText) {
-    if (!rawText) return [];
-    let cleaned = rawText
-        .replace(/```json/gi, '')
-        .replace(/```/g, '')
-        .trim();
-
-    const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-    const objMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (arrMatch) {
-        cleaned = arrMatch[0];
-    } else if (objMatch) {
-        cleaned = `[${objMatch[0]}]`;
+/**
+ * 健壮解析模型回复：
+ * - 去掉思维链 <think> 与代码块围栏
+ * - 逐个尝试“括号配对”的 JSON 片段，而不是贪婪匹配第一个 [ 到最后一个 ]
+ * 返回 { items, status }：status = ok | empty | invalid | noreply
+ */
+function findBalancedJson(text, startIdx) {
+    const open = text[startIdx];
+    const close = open === '[' ? ']' : '}';
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let i = startIdx; i < text.length; i++) {
+        const ch = text[i];
+        if (inStr) {
+            if (esc) esc = false;
+            else if (ch === '\\') esc = true;
+            else if (ch === '"') inStr = false;
+            continue;
+        }
+        if (ch === '"') inStr = true;
+        else if (ch === open) depth++;
+        else if (ch === close) {
+            depth--;
+            if (depth === 0) return text.slice(startIdx, i + 1);
+        }
     }
-
-    try {
-        const data = JSON.parse(cleaned);
-        if (Array.isArray(data)) return data;
-        if (data && Array.isArray(data.events)) return data.events;
-        if (data && typeof data === 'object') return [data];
-    } catch (e) {
-        console.warn('[KarmaEcho] JSON 解析失败:', rawText, e);
-    }
-    return [];
+    return null;
 }
+
+function looseJsonParse(s) {
+    try { return JSON.parse(s); } catch (_) { /* 再试一次宽松修正 */ }
+    try {
+        const fixed = s
+            .replace(/[“”]/g, '"')
+            .replace(/,\s*([\]}])/g, '$1');
+        return JSON.parse(fixed);
+    } catch (_) {
+        return undefined;
+    }
+}
+
+function parseKarmaReply(rawText) {
+    let text = String(rawText || '')
+        .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+        .replace(/```(?:json)?/gi, '')
+        .trim();
+    if (!text) return { items: [], status: 'noreply' };
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch !== '[' && ch !== '{') continue;
+        const chunk = findBalancedJson(text, i);
+        if (!chunk) continue;
+        const data = looseJsonParse(chunk);
+        if (data === undefined) continue;
+
+        let items = null;
+        if (Array.isArray(data)) items = data;
+        else if (data && Array.isArray(data.events)) items = data.events;
+        else if (data && Array.isArray(data.items)) items = data.items;
+        else if (data && typeof data === 'object' && (data.char || data.character || data.name)) items = [data];
+
+        if (items) {
+            items = items.filter(x => x && typeof x === 'object');
+            return { items, status: items.length ? 'ok' : 'empty' };
+        }
+        i += chunk.length - 1; // 这一段不是我们要的结构，跳过整段继续找
+    }
+    return { items: [], status: 'invalid' };
+}
+
+function tryParseKarmaJson(rawText) {
+    return parseKarmaReply(rawText).items;
+}
+
+function previewReply(rawText, n = 80) {
+    const t = String(rawText || '').replace(/\s+/g, ' ').trim();
+    return t.length > n ? `${t.slice(0, n)}…` : (t || '（空）');
+}
+
+const JUDGE_SYSTEM_PROMPT = '你是一个冷静克制的叙事因果分析引擎，不参与角色扮演。只输出符合要求的纯 JSON 数组，不输出任何解释、前言或多余文字。';
 
 async function runLLMPrompt(promptText) {
     const settings = getSettings();
@@ -823,7 +880,7 @@ async function runLLMPrompt(promptText) {
                 messages: [
                     {
                         role: 'system',
-                        content: '你是一个冷静克制的叙事因果分析引擎，只输出符合要求的纯 JSON 数组，不输出任何多余文字。',
+                        content: JUDGE_SYSTEM_PROMPT,
                     },
                     {
                         role: 'user',
@@ -837,15 +894,19 @@ async function runLLMPrompt(promptText) {
             throw new Error(`独立 API 请求失败 (${resp.status}): ${await resp.text()}`);
         }
         const data = await resp.json();
-        return data?.choices?.[0]?.message?.content || '[]';
+        return data?.choices?.[0]?.message?.content || '';
     }
 
     const ctx = getSTContext();
+    // 优先 generateRaw：只发送我们自己的分析提示词，不夹带角色扮演预设/破限/聊天记录，JSON 输出更稳定
+    if (typeof ctx.generateRaw === 'function') {
+        return await ctx.generateRaw({ systemPrompt: JUDGE_SYSTEM_PROMPT, prompt: promptText });
+    }
     if (typeof ctx.generateQuietPrompt === 'function') {
         return await ctx.generateQuietPrompt({ quietPrompt: promptText, quietToLoud: false, skipWIAN: true });
     }
 
-    throw new Error('未找到可用的生成接口（generateQuietPrompt 不可用且未配置独立 API）。');
+    throw new Error('未找到可用的生成接口（generateRaw / generateQuietPrompt 不可用且未配置独立 API）。');
 }
 
 /**
@@ -911,8 +972,24 @@ ${recentMessages}
             toastr.info(`正在分析${rangeNote}……`, '因果回响');
         }
         const rawReply = await runLLMPrompt(judgePrompt);
-        const items = tryParseKarmaJson(rawReply);
+        const { items, status } = parseKarmaReply(rawReply);
         const recorded = [];
+
+        if (status === 'invalid' || status === 'noreply') {
+            // 模型没给出可用结果：不推进进度，等下一个判定周期连同新楼层一起重试
+            console.warn('[KarmaEcho] 判定回复无法解析，原文：\n', rawReply);
+            ledger.repliesSinceJudge = 0;
+            if (typeof toastr !== 'undefined') {
+                toastr.warning(
+                    status === 'noreply'
+                        ? '模型返回了空内容，这些楼层会在下次判定时重试。'
+                        : `模型没有按格式返回 JSON（原文已输出到 F12 控制台）：${previewReply(rawReply)}`,
+                    '因果回响 · 判定失败',
+                    { timeOut: 8000 }
+                );
+            }
+            return [];
+        }
 
         for (const item of items) {
             const charName = item.char || item.character || item.name;
@@ -978,11 +1055,32 @@ ${worldLore}
 
     try {
         if (typeof toastr !== 'undefined') {
-            toastr.info(wiTotal > 0 ? `正在让模型通读 ${wiCount}/${wiTotal} 条世界书与角色卡……` : '正在让模型阅读角色卡……', '因果回响');
+            const skipped = wiTotal - wiCount;
+            toastr.info(
+                wiTotal > 0
+                    ? `正在让模型通读 ${wiCount}/${wiTotal} 条世界书与角色卡……${skipped > 0 ? `（另有 ${skipped} 条超出字数上限，可在设置中调高「开局扫描字数上限」）` : ''}`
+                    : '正在让模型阅读角色卡……',
+                '因果回响',
+                { timeOut: 7000 }
+            );
         }
         const rawReply = await runLLMPrompt(scanPrompt);
-        const items = tryParseKarmaJson(rawReply);
+        const { items, status } = parseKarmaReply(rawReply);
         let count = 0;
+
+        if (status !== 'ok') {
+            console.warn('[KarmaEcho] 扫描回复原文：\n', rawReply);
+            if (typeof toastr !== 'undefined') {
+                if (status === 'empty') {
+                    toastr.info('模型通读后认为设定里没有明显的未了恩怨/亏欠（返回了空列表）。', '因果回响', { timeOut: 7000 });
+                } else if (status === 'noreply') {
+                    toastr.warning('模型返回了空内容。请检查当前 API 连接，或在设置中启用独立 API。', '因果回响 · 扫描失败', { timeOut: 8000 });
+                } else {
+                    toastr.warning(`模型没有按格式返回 JSON（原文已输出到 F12 控制台）：${previewReply(rawReply)}`, '因果回响 · 扫描失败', { timeOut: 10000 });
+                }
+            }
+            return;
+        }
 
         for (const item of items) {
             const charName = item.char || item.character || item.name;
