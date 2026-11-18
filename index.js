@@ -292,8 +292,18 @@ function resolveMvuVar(varPath) {
     return undefined;
 }
 
+function replaceStMacros(str) {
+    const ctx = getSTContext();
+    const charId = ctx?.characterId;
+    const charName = (ctx?.characters && charId !== undefined && ctx.characters[charId]?.name) || ctx?.name2 || '角色';
+    const userName = ctx?.name1 || '玩家';
+    return String(str || '')
+        .replace(/\{\{char\}\}|<char>/gi, charName)
+        .replace(/\{\{user\}\}|<user>/gi, userName);
+}
+
 function cleanWorldInfoText(raw) {
-    const str = String(raw || '');
+    const str = replaceStMacros(raw);
     if (!str.includes('<%')) return str.trim();
     // 优先执行 MVU / EJS 阶段条件分支（按当前聊天的实际进度阶段裁剪掉尚未发生的未来阶段）
     try {
@@ -327,7 +337,7 @@ function cleanWorldInfoText(raw) {
 }
 
 function isTechnicalMetaEntry(title) {
-    return /^\[?mvu[_\s]|变量(更新规则|列表|初始化)|状态栏(规则|模板)/i.test(String(title || '').trim());
+    return /^\[?mvu[_\s]|变量(更新规则|列表|初始化|输出)|状态栏|输出(要求|格式|规范)|正文(前状态栏|输出要求|格式)/i.test(String(title || '').trim());
 }
 
 function normalizeWorldInfoEntry(e) {
@@ -363,7 +373,10 @@ function formatWorldInfoEntries(entries, budget, perEntry) {
     const lines = [];
     let used = 0;
     for (const e of entries) {
-        const body = e.content.length > perEntry ? `${e.content.slice(0, perEntry)}…` : e.content;
+        const remaining = budget - used;
+        if (remaining <= 120) break;
+        const maxSlice = Math.min(perEntry, Math.max(300, remaining - e.title.length - 10));
+        const body = e.content.length > maxSlice ? `${e.content.slice(0, maxSlice)}…` : e.content;
         const line = `[${e.title}] ${body}`;
         if (used + line.length > budget) continue;
         lines.push(line);
@@ -393,8 +406,11 @@ function buildCharacterLore() {
         const charId = ctx.characterId;
         const charObj = (ctx.characters && charId !== undefined) ? ctx.characters[charId] : null;
         if (!charObj) return '';
+        const userName = ctx.name1 || '玩家';
+        const userPersona = ctx.powerUserSettings?.persona_description || window?.power_user?.persona_description || '';
         const charDesc = [
             charObj.name ? `【主角色名】：${charObj.name}` : '',
+            userName ? `【玩家角色（User）】：${userName}${userPersona ? `（设定：${cleanWorldInfoText(userPersona).slice(0, 1500)}）` : ''}` : '',
             charObj.description ? `【角色设定】：${cleanWorldInfoText(charObj.description).slice(0, 8000)}` : '',
             charObj.personality ? `【性格特征】：${cleanWorldInfoText(charObj.personality).slice(0, 1000)}` : '',
             charObj.scenario ? `【当前背景】：${cleanWorldInfoText(charObj.scenario).slice(0, 3000)}` : '',
@@ -440,7 +456,8 @@ async function buildFullLoreContext() {
 
     if (settings.includeWorldInfo) {
         const all = await collectAllWorldInfoEntries();
-        const res = formatWorldInfoEntries(all, Number(settings.scanWorldInfoChars) || 50000, 2500);
+        // 允许单条超长设定（如上万字的总时间线）完整读入，不再死卡 2500 字
+        const res = formatWorldInfoEntries(all, Number(settings.scanWorldInfoChars) || 50000, 20000);
         count = res.count;
         total = res.total;
         if (res.text) parts.push(`=== 世界书全部设定 ===\n${res.text}`);
@@ -466,14 +483,14 @@ async function buildFullLoreContext() {
 /**
  * 因果记账核心原则（判定、开局扫描、正文内嵌标签共用）
  */
-const KARMA_CORE_RULES = `=== 因果审计与记账铁律（务必严格执行） ===
+const KARMA_CORE_RULES = `=== 因果审计与记账铁律（全题材通用，务必严格执行） ===
 0. 【时间线断代铁律（严禁预支未来因果）】：
-   - 必须先根据【当前聊天所处时间节点与现场】确定现在故事处于哪个时期（例如：是童年/少年求学时期，还是十三年后重逢时期，还是终局时期）。
-   - 只允许结算【截至当前时间节点已经发生】的过往行为！凡是在当前时间点之后才会发生的未来原著事件（例如：若当前尚在少年求学时期，则未来的灭门、移丹、失控血案、围剿、祠堂冲突等均尚未发生；若当前在十三年后初醒，则未来的终局祠堂冲突尚未发生），一律严禁提前计入因果账本！
+   - 必须先根据【当前聊天所处时间节点与现场】确定现在故事处于哪个时期。
+   - 只允许结算【截至当前时间节点已经发生】的过往行为！凡是在当前时间点之后才会发生的未来事件（无论是原著后续剧情，还是世界书时间线里尚未抵达的阶段），一律严禁提前计入因果账本！
 1. 【核心方法论：苦主视角倒查法】（拒绝顺着主角光环记账）：
    - 严禁顺着作者或叙事者的偏爱视角去夸大主角团的善、隐瞒主角团的恶！
-   - 评估任何角色（尤其是主角、官配、被设定集美化的上位者）时，必须先找出所有因他而受损、受辱、受委屈的【苦主】（例如：被偏心冷落的亲生子女、被连累覆灭的家族、被擅闯宗祠/家门动手冒犯的苦主、被他拔剑打伤的本门师长、因他失控而惨死的亲友与无辜者）。
-   - 必须挨个站在每位【苦主】的立场上倒查该角色欠下的债：凡是“拿苦主的地盘、尊严、亲人或性命，去成全自己的深情、护短或大义”（例如：为护心上人打伤养育自己的同门师长、不请自来闯入苦主父母灵堂/祠堂还在苦主面前动手逞威、一意孤行惹祸却让全族买单），站在苦主与公义立场上全是实打实的加害、冒犯与亏欠，必须逐条记负面（−）！
+   - 评估任何角色（含主控角色、主角、官配、上位者）时，必须先找出所有因他而受损、受辱、受委屈的【苦主】（例如：现代题材中被冷暴力/欺瞒/甩锅的伴侣或搭档、校园/西幻题材中被霸凌/恶作剧伤及或被背叛的同伴、古风/权谋题材中被偏心冷落的子女/被连累覆灭的家族/被擅闯门庭动武冒犯的苦主/被打伤的师长/被误杀的无辜者）。
+   - 必须挨个站在每位【苦主】的立场上倒查该角色欠下的债：凡是“拿苦主的利益、尊严、地盘、亲人或性命，去成全自己的深情、护短、私欲或大义”，站在苦主与公义立场上全是实打实的加害、冒犯与亏欠，必须逐条记负面（−）！
 2. 【穿透世界书洗白：调用原著与常理补全】：
    - 世界书与角色卡常带有强烈的作者偏心或 CP 滤镜，会刻意省略、柔化主角团的不当行为（如只写“在祠堂心疼落泪”却隐去“擅闯他人祠堂并对苦主拔剑相向”，或将严重失控伤人一笔带过）。
    - 若识别出当前设定源自已知作品，你必须【直接调用对该作品原著全貌的客观记忆】，把被世界书作者隐去、淡化或洗白的争议事件、越界失礼、双标护短与血债全部还原出来入账，绝不可只当传声筒！
