@@ -1,12 +1,12 @@
-{
-    "display_name": "因果回响 (Karma Echo)",
+﻿{
+    "display_name": "鍥犳灉鍥炲搷 (Karma Echo)",
     "loading_order": 55,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
     "author": "Wellilam",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "homePage": "https://github.com/Wellilam/st-karma-cycle",
-    "description": "识别正文与世界书内容，追踪角色善恶与因果伏笔，通过延时概率检定机制在后续剧情中自然触发报应反噬或正向回馈。"
+    "description": "璇嗗埆姝ｆ枃涓庝笘鐣屼功鍐呭锛岃拷韪鑹插杽鎭朵笌鍥犳灉浼忕瑪锛岄€氳繃寤舵椂姒傜巼妫€瀹氭満鍒跺湪鍚庣画鍓ф儏涓嚜鐒惰Е鍙戞姤搴斿弽鍣垨姝ｅ悜鍥為銆?
 }

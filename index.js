@@ -58,8 +58,8 @@ const DEFAULT_SETTINGS = {
     judgeMode: 'hybrid',
     judgeInterval: 1,
     includeWorldInfo: true,
-    worldInfoKeywords: '因果,规则,准则,善恶,禁忌,契约,誓言,底线,秘密,罪行,恩怨,宿命,戒律',
-    maxWorldInfoChars: 2500,
+    maxWorldInfoChars: 3000,   // 每回合判定时附带的世界书字数上限
+    scanWorldInfoChars: 12000, // 开局扫描时交给模型阅读的世界书字数上限
 
     // 延时概率检定参数
     latentTurns: 3,         // 潜伏回合数
@@ -233,107 +233,125 @@ function getKarmaTierInfo(score) {
 }
 
 /**
- * 提取激活的世界书与角色卡设定
+ * 世界书读取策略（交给 LLM 理解，而不是关键词过滤）
+ * - 每回合判定：使用酒馆本轮生成时“实际激活”的世界书条目（由酒馆自身的关键词/常驻规则决定，与主模型看到的一致）
+ * - 开局扫描：读取所有已启用世界书的全部条目，整体交给 LLM 阅读并提炼角色前史
  */
-async function extractWorldInfoAndCharacterLore() {
-    const settings = getSettings();
-    const ctx = getSTContext();
-    const sections = [];
+let lastActivatedWorldInfo = [];
 
+function normalizeWorldInfoEntry(e) {
+    const keyText = Array.isArray(e.key) ? e.key.join(',') : (e.key || '');
+    return {
+        title: String(e.comment || keyText || '世界书条目').trim(),
+        content: String(e.content || '').trim(),
+        world: e.world || '',
+        constant: Boolean(e.constant),
+    };
+}
+
+function onWorldInfoActivated(entries) {
+    if (!Array.isArray(entries)) return;
+    lastActivatedWorldInfo = entries
+        .filter(e => e && !e.disable && String(e.content || '').trim())
+        .map(normalizeWorldInfoEntry);
+    updateWorldInfoStatus();
+}
+
+function updateWorldInfoStatus() {
+    const el = document.getElementById('st-karma-wi-status');
+    if (!el) return;
+    const n = lastActivatedWorldInfo.length;
+    el.textContent = n > 0
+        ? `上一轮酒馆激活了 ${n} 条世界书条目，会随剧情一起交给模型判定。`
+        : '自动读取酒馆每轮实际激活的世界书条目，无需配置关键词。';
+}
+
+function formatWorldInfoEntries(entries, budget, perEntry) {
+    const lines = [];
+    let used = 0;
+    for (const e of entries) {
+        const body = e.content.length > perEntry ? `${e.content.slice(0, perEntry)}…` : e.content;
+        const line = `[${e.title}] ${body}`;
+        if (used + line.length > budget) continue;
+        lines.push(line);
+        used += line.length + 1;
+    }
+    return { text: lines.join('\n'), count: lines.length, total: entries.length };
+}
+
+async function collectAllWorldInfoEntries() {
+    const wiMod = await ensureWorldInfoModule();
+    if (typeof wiMod?.getSortedEntries !== 'function') return [];
+    try {
+        const raw = await wiMod.getSortedEntries();
+        return (raw || [])
+            .filter(e => e && !e.disable && String(e.content || '').trim())
+            .map(normalizeWorldInfoEntry);
+    } catch (e) {
+        console.warn('[KarmaEcho] 读取世界书失败:', e);
+        return [];
+    }
+}
+
+function buildCharacterLore() {
+    const ctx = getSTContext();
     try {
         const charId = ctx.characterId;
         const charObj = (ctx.characters && charId !== undefined) ? ctx.characters[charId] : null;
-        if (charObj) {
-            const charDesc = [
-                charObj.name ? `【主角色名】：${charObj.name}` : '',
-                charObj.description ? `【角色设定】：${charObj.description.slice(0, 800)}` : '',
-                charObj.personality ? `【性格特征】：${charObj.personality.slice(0, 300)}` : '',
-                charObj.scenario ? `【当前背景】：${charObj.scenario.slice(0, 400)}` : '',
-            ].filter(Boolean).join('\n');
-            if (charDesc) {
-                sections.push(`=== 角色档案 ===\n${charDesc}`);
-            }
-        }
+        if (!charObj) return '';
+        const charDesc = [
+            charObj.name ? `【主角色名】：${charObj.name}` : '',
+            charObj.description ? `【角色设定】：${charObj.description.slice(0, 1200)}` : '',
+            charObj.personality ? `【性格特征】：${charObj.personality.slice(0, 400)}` : '',
+            charObj.scenario ? `【当前背景】：${charObj.scenario.slice(0, 600)}` : '',
+        ].filter(Boolean).join('\n');
+        return charDesc ? `=== 角色档案 ===\n${charDesc}` : '';
     } catch (e) {
         console.warn('[KarmaEcho] 读取角色卡失败:', e);
+        return '';
+    }
+}
+
+/**
+ * 每回合判定用的设定上下文：角色卡 + 本轮激活的世界书
+ */
+async function buildTurnLoreContext() {
+    const settings = getSettings();
+    const parts = [buildCharacterLore()];
+
+    if (settings.includeWorldInfo) {
+        let entries = lastActivatedWorldInfo;
+        if (entries.length === 0) {
+            // 还没有发生过生成（例如刚打开聊天就手动判定）：退回到常驻条目
+            entries = (await collectAllWorldInfoEntries()).filter(e => e.constant);
+        }
+        // 被剧情关键词触发的条目比常驻条目更贴近当前情节，排在前面
+        const sorted = [...entries].sort((a, b) => Number(a.constant) - Number(b.constant));
+        const { text } = formatWorldInfoEntries(sorted, Number(settings.maxWorldInfoChars) || 3000, 600);
+        if (text) parts.push(`=== 本轮相关的世界书设定 ===\n${text}`);
     }
 
-    if (!settings.includeWorldInfo) {
-        return sections.join('\n\n').slice(0, settings.maxWorldInfoChars);
+    return parts.filter(Boolean).join('\n\n');
+}
+
+/**
+ * 开局扫描用的设定上下文：角色卡 + 所有已启用世界书的全部条目
+ */
+async function buildFullLoreContext() {
+    const settings = getSettings();
+    const parts = [buildCharacterLore()];
+    let count = 0;
+    let total = 0;
+
+    if (settings.includeWorldInfo) {
+        const all = await collectAllWorldInfoEntries();
+        const res = formatWorldInfoEntries(all, Number(settings.scanWorldInfoChars) || 12000, 800);
+        count = res.count;
+        total = res.total;
+        if (res.text) parts.push(`=== 世界书全部设定 ===\n${res.text}`);
     }
 
-    try {
-        const wiMod = await ensureWorldInfoModule();
-        const bookNames = new Set();
-
-        const charId = ctx.characterId;
-        const charObj = (ctx.characters && charId !== undefined) ? ctx.characters[charId] : null;
-        const charWorld = charObj?.data?.extensions?.world;
-        if (charWorld) bookNames.add(charWorld);
-
-        const chatWorld = ctx.chatMetadata?.world_info;
-        if (chatWorld) bookNames.add(chatWorld);
-
-        if (Array.isArray(wiMod?.selected_world_info)) {
-            wiMod.selected_world_info.forEach(b => b && bookNames.add(b));
-        }
-
-        const filterKws = (settings.worldInfoKeywords || '')
-            .split(/[,，、\s]+/)
-            .map(s => s.trim().toLowerCase())
-            .filter(Boolean);
-
-        const recentChatText = (ctx.chat || [])
-            .slice(-4)
-            .map(m => m?.mes || '')
-            .join('\n')
-            .toLowerCase();
-
-        const matchedEntries = [];
-        const loadBookFn = wiMod?.loadWorldInfo || ctx.loadWorldInfo;
-
-        if (typeof loadBookFn === 'function') {
-            for (const bookName of bookNames) {
-                try {
-                    const bookData = await loadBookFn(bookName);
-                    if (!bookData || !bookData.entries) continue;
-
-                    for (const entry of Object.values(bookData.entries)) {
-                        if (!entry || entry.disable) continue;
-                        const content = (entry.content || '').trim();
-                        if (!content) continue;
-
-                        const comment = (entry.comment || '').trim();
-                        const keys = Array.isArray(entry.key) ? entry.key.join(',') : (entry.key || '');
-                        const combinedLower = `${comment} ${keys} ${content}`.toLowerCase();
-
-                        const isConstant = Boolean(entry.constant);
-                        const matchesRuleKw = filterKws.length === 0 || filterKws.some(kw => combinedLower.includes(kw));
-                        const matchesChatKey = Array.isArray(entry.key) && entry.key.some(k => k && recentChatText.includes(String(k).toLowerCase()));
-
-                        if (isConstant || matchesRuleKw || matchesChatKey) {
-                            matchedEntries.push({
-                                priority: matchesRuleKw ? 2 : (matchesChatKey ? 1 : 0),
-                                text: `[${comment || keys || '世界书设定'}]: ${content.slice(0, 450)}`,
-                            });
-                        }
-                    }
-                } catch (bookErr) {
-                    console.warn(`[KarmaEcho] 读取世界书 ${bookName} 失败:`, bookErr);
-                }
-            }
-        }
-
-        if (matchedEntries.length > 0) {
-            matchedEntries.sort((a, b) => b.priority - a.priority);
-            const wiText = matchedEntries.slice(0, 8).map(e => e.text).join('\n');
-            sections.push(`=== 世界书参考设定 ===\n${wiText}`);
-        }
-    } catch (e) {
-        console.warn('[KarmaEcho] 提取世界书失败:', e);
-    }
-
-    return sections.join('\n\n').slice(0, settings.maxWorldInfoChars || 2500);
+    return { text: parts.filter(Boolean).join('\n\n'), count, total };
 }
 
 /**
@@ -835,7 +853,7 @@ async function judgeLatestTurnWithAI(isManual = false) {
         return [];
     }
 
-    const worldLore = await extractWorldInfoAndCharacterLore();
+    const worldLore = await buildTurnLoreContext();
     const recentMessages = chat.slice(-3).map(m => `${m.name || (m.is_user ? '玩家' : '角色')}: ${m.mes}`).join('\n\n---\n\n');
 
     const ledger = getChatLedger();
@@ -908,7 +926,7 @@ ${recentMessages}
  * 扫描世界书与角色前史，提取初始未结算因果
  */
 async function scanWorldLoreForInitialKarma() {
-    const worldLore = await extractWorldInfoAndCharacterLore();
+    const { text: worldLore, count: wiCount, total: wiTotal } = await buildFullLoreContext();
     if (!worldLore || worldLore.trim().length < 10) {
         if (typeof toastr !== 'undefined') {
             toastr.warning('未读取到有效的角色卡设定或激活的世界书内容。', '因果回响');
@@ -934,7 +952,7 @@ ${worldLore}
 
     try {
         if (typeof toastr !== 'undefined') {
-            toastr.info('正在扫描世界书与角色前史……', '因果回响');
+            toastr.info(wiTotal > 0 ? `正在让模型通读 ${wiCount}/${wiTotal} 条世界书与角色卡……` : '正在让模型阅读角色卡……', '因果回响');
         }
         const rawReply = await runLLMPrompt(scanPrompt);
         const items = tryParseKarmaJson(rawReply);
@@ -1498,8 +1516,15 @@ function initUI() {
                         <label><input id="st-karma-include-wi" type="checkbox" ${settings.includeWorldInfo ? 'checked' : ''} /> 结合世界书 (World Info) 与角色设定</label>
                     </div>
                     <div class="st-karma-row">
-                        <label>世界书提取关键词</label>
-                        <input id="st-karma-wi-keywords" type="text" class="text_pole" value="${escapeHtml(settings.worldInfoKeywords)}" placeholder="规则,契约,秘密,恩怨..." />
+                        <small id="st-karma-wi-status" style="opacity:0.75; line-height:1.5;">自动读取酒馆每轮实际激活的世界书条目，无需配置关键词。</small>
+                    </div>
+                    <div class="st-karma-row">
+                        <label title="每回合判定时，附带给模型的世界书内容上限">每回合世界书字数上限</label>
+                        <input id="st-karma-wi-chars" type="number" min="500" max="20000" step="500" class="text_pole st-karma-input-num" value="${settings.maxWorldInfoChars}" />
+                    </div>
+                    <div class="st-karma-row">
+                        <label title="点「扫描世界书与前史」时，交给模型通读的世界书内容上限">开局扫描字数上限</label>
+                        <input id="st-karma-scan-chars" type="number" min="1000" max="60000" step="1000" class="text_pole st-karma-input-num" value="${settings.scanWorldInfoChars}" />
                     </div>
                     <div class="st-karma-row">
                         <label>后台静默判定间隔 (回合)</label>
@@ -1626,7 +1651,8 @@ function bindSettingsEvents() {
     bindCheck('st-karma-custom-api', 'useCustomApi');
 
     bindVal('st-karma-judge-mode', 'judgeMode', false);
-    bindVal('st-karma-wi-keywords', 'worldInfoKeywords', false);
+    bindVal('st-karma-wi-chars', 'maxWorldInfoChars', true);
+    bindVal('st-karma-scan-chars', 'scanWorldInfoChars', true);
     bindVal('st-karma-judge-interval', 'judgeInterval', true);
     bindVal('st-karma-latent-turns', 'latentTurns', true);
     bindVal('st-karma-threshold', 'triggerThreshold', true);
@@ -1652,10 +1678,16 @@ jQuery(async () => {
         if (evSource && typeof evSource.on === 'function') {
             if (evTypes.CHAT_CHANGED) {
                 evSource.on(evTypes.CHAT_CHANGED, () => {
+                    lastActivatedWorldInfo = [];
+                    updateWorldInfoStatus();
                     syncExtensionPrompts();
                     updateFabBadge();
                     renderModalIfOpen();
                 });
+            }
+
+            if (evTypes.WORLD_INFO_ACTIVATED) {
+                evSource.on(evTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
             }
 
             if (evTypes.MESSAGE_RECEIVED) {
