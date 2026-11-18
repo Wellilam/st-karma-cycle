@@ -265,11 +265,23 @@ function getKarmaTierInfo(score) {
  */
 let lastActivatedWorldInfo = [];
 
+function cleanWorldInfoText(raw) {
+    return String(raw || '')
+        .replace(/<%[\s\S]*?%>/g, '') // 剥离 MVU / EJS 模板脚本代码，节省字数预算并避免干扰模型
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function isTechnicalMetaEntry(title) {
+    return /^\[?mvu[_\s]|变量(更新规则|列表|初始化)|状态栏(规则|模板)/i.test(String(title || '').trim());
+}
+
 function normalizeWorldInfoEntry(e) {
     const keyText = Array.isArray(e.key) ? e.key.join(',') : (e.key || '');
+    const title = String(e.comment || keyText || '世界书条目').trim();
     return {
-        title: String(e.comment || keyText || '世界书条目').trim(),
-        content: String(e.content || '').trim(),
+        title,
+        content: cleanWorldInfoText(e.content),
         world: e.world || '',
         constant: Boolean(e.constant),
     };
@@ -279,7 +291,8 @@ function onWorldInfoActivated(entries) {
     if (!Array.isArray(entries)) return;
     lastActivatedWorldInfo = entries
         .filter(e => e && !e.disable && String(e.content || '').trim())
-        .map(normalizeWorldInfoEntry);
+        .map(normalizeWorldInfoEntry)
+        .filter(e => e.content && !isTechnicalMetaEntry(e.title));
     updateWorldInfoStatus();
 }
 
@@ -312,7 +325,8 @@ async function collectAllWorldInfoEntries() {
         const raw = await wiMod.getSortedEntries();
         return (raw || [])
             .filter(e => e && !e.disable && String(e.content || '').trim())
-            .map(normalizeWorldInfoEntry);
+            .map(normalizeWorldInfoEntry)
+            .filter(e => e.content && !isTechnicalMetaEntry(e.title));
     } catch (e) {
         console.warn('[KarmaEcho] 读取世界书失败:', e);
         return [];
@@ -327,9 +341,9 @@ function buildCharacterLore() {
         if (!charObj) return '';
         const charDesc = [
             charObj.name ? `【主角色名】：${charObj.name}` : '',
-            charObj.description ? `【角色设定】：${charObj.description.slice(0, 1200)}` : '',
-            charObj.personality ? `【性格特征】：${charObj.personality.slice(0, 400)}` : '',
-            charObj.scenario ? `【当前背景】：${charObj.scenario.slice(0, 600)}` : '',
+            charObj.description ? `【角色设定】：${cleanWorldInfoText(charObj.description).slice(0, 8000)}` : '',
+            charObj.personality ? `【性格特征】：${cleanWorldInfoText(charObj.personality).slice(0, 1000)}` : '',
+            charObj.scenario ? `【当前背景】：${cleanWorldInfoText(charObj.scenario).slice(0, 3000)}` : '',
         ].filter(Boolean).join('\n');
         return charDesc ? `=== 角色档案 ===\n${charDesc}` : '';
     } catch (e) {
@@ -385,8 +399,9 @@ async function buildFullLoreContext() {
  */
 const KARMA_CORE_RULES = `=== 因果审计与记账铁律（务必严格执行） ===
 1. 撕掉叙事滤镜（去主角光环）：不要被设定集或正文里的悲情渲染、苦衷洗白、温润人设或作者偏爱带偏。无论动机多伟大、姿态多无辜，只要客观上越界惹祸、连累他人买单、损害无辜，就必须记负面（−）；反之，无论性格多嘴硬暴躁，只要客观上付出了代价、护住了他人，就必须记正向（+）。
-2. 三层追责溯源（不只看表象）：
+2. 四层追责溯源（不只看表象）：
    - 【直接行为】：守信、相助、牺牲、护短担责（+）；欺瞒、背叛、算计、加害、恩将仇报、道德绑架、精神打压（−）。
+   - 【杀伐血债与失控暴走（重大业障必记）】：凡涉及屠城、血洗、大规模杀伤、滥杀无辜，或因修习高危禁术、炼制凶器/凶尸、心神失控而造成旁人误死、无差别屠戮（如误杀无辜亲友、血洗战场），乃至因自身失控或涉险导致至亲替自己挡刀惨死——无论当事人是否“被逼无奈、遭人算计、一时失控、并非本意”或“前世已死过一次”，只要惨剧由其手或因其失控酿成，必须作为重大负面血债单独重记在当事人名下（−30 ~ −50，对象写具体受害者或“某地众人”），绝不可被“失控”二字洗白，也不可与其它事件合并抹平！
    - 【祸端与连累】：发生灾祸时，不能只记直接行凶者；若是某人冲动越界、一意孤行引火烧身，却让亲友/同门/家族替其承受了惨痛代价，必须给惹祸连累者记一笔负面亏欠（−）。
    - 【上位者失职与不作为】：凡有家庭失和、组织不公或晚辈悲剧，必须向上追查父母、家主、师长、掌权者或伴侣是否存在偏心冷落、贬低打压、和稀泥、享红利却逃避责任等隐性失职。长期失职造成心理创伤或关系崩裂的，必须记负面（−15 ~ −40）。
 3. 一事多面，按对象拆条：同一件事若对甲是恩、对乙是伤，必须按不同受事对象（target）拆成多条独立记录；严禁把同一角色的功与过合并成一条，也严禁把几件事揉成一条笼统的大分。单条分值范围 ±5 ~ ±50。
@@ -396,7 +411,7 @@ const KARMA_CORE_RULES = `=== 因果审计与记账铁律（务必严格执行�
 function buildRulesBlock(compact = false) {
     const custom = String(getSettings().customRules || '').trim();
     const core = compact
-        ? '撕掉主角与悲情滤镜，只看客观行为与谁承担苦果；功与过分条记录并写明对象（target）；惹祸连累他人买单、上位者/父母偏心冷落与失职不作为均须记负面（−）；同一件事对不同人分别记恩与伤；恩怨双向记账（系统自动抵扣旧恩），恩将仇报从重。'
+        ? '撕掉主角与悲情滤镜，只看客观行为与谁承担苦果；功与过分条记录并写明对象（target）；屠城血洗、禁术/凶尸失控误杀、连累至亲替死（哪怕并非本意或被逼失控）均须重记负面血债（−30~−50）；惹祸连累他人买单、上位者/父母偏心冷落与失职不作为均须记负面（−）；同一件事对不同人分别记恩与伤；恩怨双向记账（系统自动抵扣旧恩），恩将仇报从重。'
         : KARMA_CORE_RULES;
     return custom
         ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
@@ -1224,7 +1239,7 @@ async function scanWorldLoreForInitialKarma() {
         return;
     }
 
-    const scanPrompt = `请通读以下【角色档案与世界书设定】，梳理主要角色在背景前史中的关键行为（亏欠、背叛、隐瞒、连累他人，身为长辈/家主/师长的失责、偏心与不作为，或救命之恩、养育之恩、守护付出等未了前事），建立初始的“待结算因果伏笔”。长辈与已故之人的作为同样要评估。
+    const scanPrompt = `请通读以下【角色档案与世界书设定】，梳理主要角色在背景前史中的关键行为（包括：杀伐血债/屠城血洗、禁术或下属失控误杀、连累亲友惨死、亏欠背叛、身为长辈/家主/师长的偏心冷落与失职不作为，以及救命之恩、养育之恩、舍身护人等未了前事），建立初始的“待结算因果伏笔”。长辈与已故之人的作为同样要评估，且前世已死过一次或并非本意的失控惨剧绝不可漏记。
 
 ${worldLore}
 
