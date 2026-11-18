@@ -158,6 +158,7 @@ function createEmptyLedger() {
         turnCounter: 0,
         lastJudgedMessageId: -1,
         characters: {},
+        aliases: {}, // { [alias]: canonicalName } 角色同名/字号/马甲映射表
         pendingSettlements: [],
         historyLogs: [],
         worldLoreScanned: false,
@@ -187,6 +188,7 @@ function getChatLedger() {
     }
     const ledger = ctx.chatMetadata[MODULE_NAME];
     if (!ledger.characters) ledger.characters = {};
+    if (!ledger.aliases || typeof ledger.aliases !== 'object') ledger.aliases = {};
     if (!Array.isArray(ledger.pendingSettlements)) ledger.pendingSettlements = [];
     if (!Array.isArray(ledger.historyLogs)) ledger.historyLogs = [];
     if (typeof ledger.repliesSinceJudge !== 'number') ledger.repliesSinceJudge = 0;
@@ -340,12 +342,159 @@ function isTechnicalMetaEntry(title) {
     return /^\[?mvu[_\s]|变量(更新规则|列表|初始化|输出)|状态栏|输出(要求|格式|规范)|正文(前状态栏|输出要求|格式)/i.test(String(title || '').trim());
 }
 
+const NON_CHAR_CATEGORY_RE = /^\[(世家势力|核心地点|地点名录|本命灵器|灵宠|人物名录|总纲|规则)/;
+const GENERIC_ROLE_NOUN_RE = /宗主|家主|公子|小姐|夫人|先生|宿老|医女|门生|宠妾|散人|少女|仙督|坐骑|灵宠|名录|总纲|规则|地点|势力|灵器|前宗主|大小姐|二公子|嫡公子|弃子/;
+
+/**
+ * 从世界书条目标题（如“[核心人物] 魏无羡（魏婴 · 夷陵老祖 / 莫玄羽）”）及正文中自动提取角色字号/马甲映射
+ */
+function extractAliasesFromEntry(title, content) {
+    const cleanTitle = String(title || '').trim();
+    if (!cleanTitle || NON_CHAR_CATEGORY_RE.test(cleanTitle)) return;
+
+    const ledger = getChatLedger();
+    if (!ledger.aliases) ledger.aliases = {};
+
+    const m = cleanTitle.match(/^(?:\[[^\]]*\]\s*)?([\u4e00-\u9fa5A-Za-z]{2,8})\s*[（(]([^）)]+)[）)]/);
+    if (m) {
+        const primary = m[1].trim();
+        if (!GENERIC_ROLE_NOUN_RE.test(primary)) {
+            const parts = m[2].split(/[·/、，,\s]+/).map(s => s.trim()).filter(Boolean);
+            for (const p of parts) {
+                if (p === primary || p.length < 2 || p.length > 6) continue;
+                if (GENERIC_ROLE_NOUN_RE.test(p)) continue;
+                if (!ledger.aliases[p]) {
+                    ledger.aliases[p] = primary;
+                }
+            }
+        }
+    }
+
+    // 扫描正文首段的“姓X名Y，字Z”句式
+    const head = String(content || '').slice(0, 260);
+    const bioMatch = head.match(/姓([\u4e00-\u9fa5])名([\u4e00-\u9fa5]{1,2})(?:[，,]\s*字([\u4e00-\u9fa5]{1,3}))?/);
+    if (bioMatch) {
+        const birthName = `${bioMatch[1]}${bioMatch[2]}`;
+        const courtesyFull = bioMatch[3] ? `${bioMatch[1]}${bioMatch[3]}` : '';
+        const primary = m ? m[1].trim() : (courtesyFull || birthName);
+        if (birthName && birthName !== primary && !ledger.aliases[birthName]) {
+            ledger.aliases[birthName] = primary;
+        }
+        if (courtesyFull && courtesyFull !== primary && !ledger.aliases[courtesyFull]) {
+            ledger.aliases[courtesyFull] = primary;
+        }
+    }
+}
+
+/**
+ * 将角色名/别名/括号注记归一化为标准主名（防同一角色裂成多张卡）
+ */
+function resolveCanonicalName(rawName) {
+    let s = String(rawName || '').trim();
+    if (!s) return '';
+
+    const ledger = getChatLedger();
+    if (!ledger.aliases) ledger.aliases = {};
+
+    // 若模型输出了“魏无羡（魏婴）”或“陆沉(总裁)”，拆出括号外主名并顺手登记括号内别名
+    const paren = s.match(/^([^\s（(]+)\s*[（(]([^）)]+)[）)]$/);
+    if (paren) {
+        const main = paren[1].trim();
+        const sub = paren[2].split(/[·/、，,\s]+/)[0]?.trim();
+        s = main;
+        if (sub && sub !== main && sub.length >= 2 && sub.length <= 6 && !GENERIC_ROLE_NOUN_RE.test(sub) && !ledger.aliases[sub]) {
+            ledger.aliases[sub] = main;
+        }
+    }
+
+    // 统一 User / 玩家 / 主控 称谓
+    const ctx = getSTContext();
+    const userName = String(ctx?.name1 || '').trim();
+    if (/^(user|\{\{user\}\}|玩家|主控)$/i.test(s)) {
+        if (ledger.characters?.['User']) return 'User';
+        if (userName && !/^user$/i.test(userName)) return userName;
+        return 'User';
+    }
+    if (userName && s === userName && ledger.characters?.['User'] && !ledger.characters?.[userName]) {
+        return 'User';
+    }
+
+    // 查找别名表（支持二级链式归一，防环）
+    let cur = s;
+    for (let depth = 0; depth < 3; depth++) {
+        const mapped = ledger.aliases[cur];
+        if (!mapped || mapped === cur) break;
+        cur = mapped;
+    }
+    return cur;
+}
+
+/**
+ * 将角色 fromName 的卡片与所有历史记录合并入 toName，并永久记住别名映射
+ */
+function mergeCharacterCards(fromName, toName) {
+    const src = String(fromName || '').trim();
+    const dst = String(toName || '').trim();
+    if (!src || !dst || src === dst) return false;
+
+    const ledger = getChatLedger();
+    if (!ledger.aliases) ledger.aliases = {};
+    ledger.aliases[src] = dst;
+    // 把原本指向 src 的别名也一并改指到 dst
+    for (const [k, v] of Object.entries(ledger.aliases)) {
+        if (v === src) ledger.aliases[k] = dst;
+    }
+
+    const srcRec = ledger.characters[src];
+    if (!srcRec) return true;
+
+    if (!ledger.characters[dst]) {
+        ledger.characters[dst] = createCharacterRecord(dst);
+    }
+    const dstRec = ledger.characters[dst];
+
+    for (const seed of (srcRec.seeds || [])) {
+        seed.character = dst;
+        if (seed.target === src) seed.target = '';
+        dstRec.seeds.push(seed);
+        if (seed.delta > 0) dstRec.goodAccumulated += seed.delta;
+        else if (seed.delta < 0) dstRec.evilAccumulated += Math.abs(seed.delta);
+    }
+    // 按回合排序
+    dstRec.seeds.sort((a, b) => (a.turn || 0) - (b.turn || 0));
+    if (dstRec.seeds.length > 40) dstRec.seeds = dstRec.seeds.slice(-40);
+
+    delete ledger.characters[src];
+
+    // 更新所有角色卡片里指向 src 的 target
+    for (const c of Object.values(ledger.characters)) {
+        for (const s of (c.seeds || [])) {
+            if (s.target === src) s.target = dst;
+        }
+        recalculateCharacterKarma(c);
+        calculateCharacterRoulette(c, ledger.turnCounter || 0);
+    }
+
+    // 更新待结算队列与历史日志中的角色名
+    for (const p of (ledger.pendingSettlements || [])) {
+        if (p.character === src) p.character = dst;
+    }
+    for (const log of (ledger.historyLogs || [])) {
+        if (log.character === src) log.character = dst;
+        if (log.target === src) log.target = dst;
+    }
+
+    return true;
+}
+
 function normalizeWorldInfoEntry(e) {
     const keyText = Array.isArray(e.key) ? e.key.join(',') : (e.key || '');
     const title = String(e.comment || keyText || '世界书条目').trim();
+    const content = cleanWorldInfoText(e.content);
+    extractAliasesFromEntry(title, content);
     return {
         title,
-        content: cleanWorldInfoText(e.content),
+        content,
         world: e.world || '',
         constant: Boolean(e.constant),
     };
@@ -493,12 +642,14 @@ const KARMA_CORE_RULES = `=== 因果审计核心法则（先看森林，再算�
    - 凡是伴随失职、背弃、偏心、冷暴力、双标、越界或私欲的“表面体面/局部好意/纯个人情感执念”，本质全属于亏欠或私念链条的一部分，严禁单独拆出正分去冲淡其罪责！
 4. 【总分常识自检（输出前必做）】：
    - 列出拟定的事件条目后，必须在脑中核对每个角色的【正负分加总结果】与【各苦主名下的净值】：
-   - 自问一句：“算出来的这个最终总分，符合正常读者对这个人的常识判断吗？”如果一个明显亏欠苦主、严重失职或背负血债的人，加总后居然接近 0（平澜）甚至成了正分，或者不同事件之间的分值轻重比例失衡倒挂，必须立即删掉不合理的加分、调整分值比重，直到最终总分与人物定性完全吻合！`;
+   - 自问一句：“算出来的这个最终总分，符合正常读者对这个人的常识判断吗？”如果一个明显亏欠苦主、严重失职或背负血债的人，加总后居然接近 0（平澜）甚至成了正分，或者不同事件之间的分值轻重比例失衡倒挂，必须立即删掉不合理的加分、调整分值比重，直到最终总分与人物定性完全吻合！
+5. 【人物姓名统一】：
+   - 同一角色若有本名、字号、封号或化名/马甲，char 与 target 必须统一使用其最常用的唯一主名（严禁附带括号注释，严禁把同一个人拆成两个名字分别记账）。`;
 
 function buildRulesBlock(compact = false) {
     const custom = String(getSettings().customRules || '').trim();
     const core = compact
-        ? '禁止逐句机械抠字眼打分！先站在苦主与全局常识视角对角色做【整体因果定性】，再拆解事件（target 写明对象）；凡伴随失职、背弃、双标偏心、越界或纯属个人情感执念的表面行为，一律不计正分；输出前必须自检每个角色的总分与轻重比例是否符合人类常识判断。'
+        ? '禁止逐句机械抠字眼打分！先站在苦主与全局常识视角对角色做【整体因果定性】，再拆解事件（target 写明对象，同一角色名/字号/马甲必须统一用唯一主名）；凡伴随失职、背弃、双标偏心、越界或纯属个人情感执念的表面行为，一律不计正分；输出前必须自检每个角色的总分与轻重比例是否符合人类常识判断。'
         : KARMA_CORE_RULES;
     return custom
         ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
@@ -576,7 +727,7 @@ function bindRulesTextarea(id) {
  */
 function recordKarmaEvent(charName, delta, deed, options = {}) {
     if (!charName || !delta || isNaN(delta)) return null;
-    const cleanName = String(charName).trim();
+    const cleanName = resolveCanonicalName(charName);
     if (!cleanName) return null;
 
     const settings = getSettings();
@@ -602,7 +753,7 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
         ? Number(options.minDelayTurns)
         : Number(settings.latentTurns ?? 3);
 
-    const target = options.target ? String(options.target).trim() : '';
+    const target = options.target ? resolveCanonicalName(options.target) : '';
 
     // 报恩抵债：A 对 B 行善时，如果 B 之前对 A 有未偿还的恩情，A 的付出优先用于“还人情债”。
     // 注意：只扣减报恩者 A 的“额外功德溢价”（因为还债是本分，只有超出旧恩的部分才算 A 的额外善功），
@@ -678,13 +829,19 @@ function recalculateCharacterKarma(charRec) {
     if (!charRec) return 0;
     const seeds = Array.isArray(charRec.seeds) ? charRec.seeds : [];
     const byTarget = new Map();
+    let goodAcc = 0;
+    let evilAcc = 0;
     for (const s of seeds) {
+        if (s.delta > 0) goodAcc += s.delta;
+        else if (s.delta < 0) evilAcc += Math.abs(s.delta);
         if (s.settled) continue;
         const rem = s.remainingDelta !== undefined ? s.remainingDelta : s.delta;
         if (!rem) continue;
         const key = (s.target || '').trim() || `__general_${s.id}`;
         byTarget.set(key, (byTarget.get(key) || 0) + rem);
     }
+    charRec.goodAccumulated = goodAcc;
+    charRec.evilAccumulated = evilAcc;
 
     let unpaidEvil = 0;
     let unpaidGood = 0;
@@ -703,6 +860,34 @@ function recalculateCharacterKarma(charRec) {
     const tierInfo = getKarmaTierInfo(charRec.totalKarma);
     charRec.statusTags = [tierInfo.title];
     return charRec.totalKarma;
+}
+
+function deleteSeedById(charName, seedId) {
+    const ledger = getChatLedger();
+    const charRec = ledger.characters?.[charName];
+    if (!charRec || !Array.isArray(charRec.seeds)) return false;
+    charRec.seeds = charRec.seeds.filter(s => s.id !== seedId);
+    ledger.historyLogs = (ledger.historyLogs || []).filter(l => l.id !== seedId);
+    recalculateCharacterKarma(charRec);
+    calculateCharacterRoulette(charRec, ledger.turnCounter || 0);
+    return true;
+}
+
+function updateSeedDeltaById(charName, seedId, newDelta) {
+    const ledger = getChatLedger();
+    const charRec = ledger.characters?.[charName];
+    if (!charRec || !Array.isArray(charRec.seeds)) return false;
+    const num = Math.round(Number(newDelta));
+    if (!num) return deleteSeedById(charName, seedId);
+    const seed = charRec.seeds.find(s => s.id === seedId);
+    if (!seed) return false;
+    seed.delta = num;
+    seed.remainingDelta = num - (seed.repaidAmount || 0);
+    const log = (ledger.historyLogs || []).find(l => l.id === seedId);
+    if (log) log.delta = num;
+    recalculateCharacterKarma(charRec);
+    calculateCharacterRoulette(charRec, ledger.turnCounter || 0);
+    return true;
 }
 
 /**
@@ -1672,9 +1857,20 @@ function updateFabBadge() {
     }
 }
 
+let modalSettingsOpen = false;
+
+function updateModalSettingsBtnState() {
+    const btn = document.getElementById('st-karma-modal-settings-btn');
+    if (!btn) return;
+    btn.textContent = modalSettingsOpen ? '← 返回账簿' : '⚙ 设置';
+    btn.classList.toggle('karma-btn-primary', modalSettingsOpen);
+}
+
 function openKarmaModal() {
     const backdrop = document.getElementById('st-karma-modal-backdrop');
     if (!backdrop) return;
+    modalSettingsOpen = false;
+    updateModalSettingsBtnState();
     backdrop.classList.add('karma-open');
     renderKarmaModalContent();
 }
@@ -1693,11 +1889,334 @@ function renderModalIfOpen() {
 }
 
 /**
+ * 渲染主面板内置「⚙ 设置与独立 API / 别名归一」视图
+ */
+function renderModalSettingsView(bodyEl) {
+    const settings = getSettings();
+    const ledger = getChatLedger();
+    const aliasEntries = Object.entries(ledger.aliases || {});
+
+    const aliasTagsHtml = aliasEntries.length === 0
+        ? '<span class="ke-muted">尚无别名映射（扫描世界书时会自动提取「名·字·号」，也可在下方手动添加或点卡片右上角 ⇄ 合并）</span>'
+        : aliasEntries.map(([alias, primary]) => `
+            <span class="ke-alias-tag">
+                <span>${escapeHtml(alias)}</span>
+                <i class="ke-alias-arrow">→</i>
+                <b>${escapeHtml(primary)}</b>
+                <button class="ke-alias-remove" data-alias="${escapeHtml(alias)}" title="移除该映射">✕</button>
+            </span>
+        `).join('');
+
+    bodyEl.innerHTML = `
+        <div class="ke-settings-panel">
+            <div class="ke-settings-top-bar">
+                <div>
+                    <div class="ke-settings-heading">系统设置 · 独立 API · 姓名归一</div>
+                    <div class="ke-muted">修改后立即自动保存，无需离开主面板</div>
+                </div>
+                <button id="ke-ms-back-btn" class="st-karma-btn karma-btn-primary">← 返回因果账簿</button>
+            </div>
+
+            <div class="ke-settings-grid">
+                <div class="ke-settings-card">
+                    <div class="st-karma-section-title">独立副模型 API（推荐 · 省主卡额度 & 防预设污染）</div>
+                    <div class="ke-rules-hint">开启后，后台因果判定与开局扫描将直接调用下方配置的 OpenAI 兼容接口（如 DeepSeek、Gemini Flash、GPT-4o-mini 等轻量高速模型），完全不消耗酒馆主聊天模型额度，也不会受聊天破限预设干扰。</div>
+                    <label class="ke-check-line">
+                        <input id="ke-ms-custom-api" type="checkbox" ${settings.useCustomApi ? 'checked' : ''} />
+                        <span>启用独立 OpenAI 兼容 API 进行后台分析</span>
+                    </label>
+                    <div id="ke-ms-api-fields" class="ke-api-fields" style="display:${settings.useCustomApi ? 'flex' : 'none'};">
+                        <div class="ke-field-row">
+                            <label>API 地址</label>
+                            <input id="ke-ms-api-url" type="text" placeholder="如 https://api.openai.com/v1 或 https://api.deepseek.com/v1" value="${escapeHtml(settings.customApiUrl)}" />
+                        </div>
+                        <div class="ke-field-row">
+                            <label>API Key</label>
+                            <input id="ke-ms-api-key" type="password" placeholder="sk-..." value="${escapeHtml(settings.customApiKey)}" />
+                        </div>
+                        <div class="ke-field-row">
+                            <label>模型名称</label>
+                            <input id="ke-ms-api-model" type="text" placeholder="如 deepseek-chat / gpt-4o-mini / gemini-2.5-flash" value="${escapeHtml(settings.customApiModel)}" />
+                        </div>
+                        <div class="ke-api-actions">
+                            <button id="ke-ms-test-api" class="st-karma-btn karma-btn-primary">🔌 测试独立 API 连接</button>
+                            <span id="ke-ms-test-status" class="ke-muted"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ke-settings-card">
+                    <div class="st-karma-section-title">角色同名 / 字号 / 马甲归一管理</div>
+                    <div class="ke-rules-hint">用于防止同一个角色因本名、字号、尊号或化名不同而裂成多张卡片。添加映射后，若当前账簿已有该别名卡片，会自动合并入主名名下。</div>
+                    <div class="ke-alias-list">${aliasTagsHtml}</div>
+                    <div class="ke-alias-add-row">
+                        <input id="ke-ms-alias-from" type="text" placeholder="别名 / 字号 / 马甲（如：魏婴）" />
+                        <span class="ke-muted">→</span>
+                        <input id="ke-ms-alias-to" type="text" placeholder="标准主名（如：魏无羡）" />
+                        <button id="ke-ms-alias-add-btn" class="st-karma-btn karma-btn-primary">添加并归一</button>
+                        <button id="ke-ms-alias-scan-btn" class="st-karma-btn" title="扫描当前世界书条目标题与首段，自动提取角色字号与别名">从世界书提取别名</button>
+                    </div>
+                </div>
+
+                <div class="ke-settings-card">
+                    <div class="st-karma-section-title">识别模式与世界书读取</div>
+                    <div class="ke-field-row">
+                        <label>因果判定模式</label>
+                        <select id="ke-ms-judge-mode">
+                            <option value="hybrid" ${settings.judgeMode === 'hybrid' ? 'selected' : ''}>混合模式（优先内嵌标签 / 兜底后台分析）</option>
+                            <option value="inline" ${settings.judgeMode === 'inline' ? 'selected' : ''}>仅正文内嵌 &lt;karma&gt; 标签（零额外消耗）</option>
+                            <option value="quiet" ${settings.judgeMode === 'quiet' ? 'selected' : ''}>仅后台静默 API 独立判定</option>
+                        </select>
+                    </div>
+                    <label class="ke-check-line">
+                        <input id="ke-ms-include-wi" type="checkbox" ${settings.includeWorldInfo ? 'checked' : ''} />
+                        <span>结合世界书 (World Info) 与角色设定进行判定</span>
+                    </label>
+                    <div class="ke-num-grid">
+                        <div class="ke-num-item">
+                            <label title="混合/后台模式下，每累计 N 次 AI 回复做一次判定">每几次回复判定</label>
+                            <input id="ke-ms-judge-interval" type="number" min="1" max="50" value="${settings.judgeInterval}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="单次判定最多读取的剧情字数">单次判定字数上限</label>
+                            <input id="ke-ms-judge-chars" type="number" min="1000" max="200000" step="2000" value="${settings.judgeMaxChars}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="每回合判定附带的世界书字数上限">每轮世界书字数上限</label>
+                            <input id="ke-ms-wi-chars" type="number" min="500" max="100000" step="1000" value="${settings.maxWorldInfoChars}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="点击「扫描世界书与前史」时读取的世界书总字数上限">开局扫描字数上限</label>
+                            <input id="ke-ms-scan-chars" type="number" min="1000" max="300000" step="5000" value="${settings.scanWorldInfoChars}" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ke-settings-card">
+                    <div class="st-karma-section-title">延时回旋镖参数与外观开关</div>
+                    <div class="ke-num-grid">
+                        <div class="ke-num-item">
+                            <label title="事件发生后至少等待几回合才进入检定池">伏笔潜伏期 (回合)</label>
+                            <input id="ke-ms-latent-turns" type="number" min="0" max="20" value="${settings.latentTurns}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="已成熟善恶值达到多少分开始概率检定">起检阈值 (分值)</label>
+                            <input id="ke-ms-threshold" type="number" min="5" max="200" step="5" value="${settings.triggerThreshold}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="刚达阈值时的基础触发概率 (%)">基础触发率 (%)</label>
+                            <input id="ke-ms-base-chance" type="number" min="1" max="100" value="${settings.baseTriggerChance}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="每多拖延 1 回合额外增加的触发率 (%)">每回合递增率 (%)</label>
+                            <input id="ke-ms-turn-weight" type="number" min="0" max="50" value="${settings.turnWeight}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="同一角色两次触发之间的最短冷却回合">触发冷却期 (回合)</label>
+                            <input id="ke-ms-cooldown" type="number" min="0" max="20" value="${settings.cooldownTurns}" />
+                        </div>
+                        <div class="ke-num-item">
+                            <label title="导演指令注入深度 (@D)">指令注入深度 (@D)</label>
+                            <input id="ke-ms-inject-depth" type="number" min="0" max="10" value="${settings.injectDepth}" />
+                        </div>
+                    </div>
+                    <div class="ke-switches-row">
+                        <label class="ke-check-line"><input id="ke-ms-enabled" type="checkbox" ${settings.enabled ? 'checked' : ''} /><span>启用因果回响系统</span></label>
+                        <label class="ke-check-line"><input id="ke-ms-show-fab" type="checkbox" ${settings.showFab ? 'checked' : ''} /><span>显示悬浮印章按钮</span></label>
+                        <label class="ke-check-line"><input id="ke-ms-show-badge" type="checkbox" ${settings.showChatBadge ? 'checked' : ''} /><span>显示聊天气泡底部提示</span></label>
+                        <button id="ke-ms-reset-fab" class="st-karma-btn" title="将悬浮印章恢复到右下角默认位置">重置印章位置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    bindModalSettingsEvents(bodyEl);
+}
+
+function bindModalSettingsEvents(bodyEl) {
+    const settings = getSettings();
+
+    bodyEl.querySelector('#ke-ms-back-btn')?.addEventListener('click', () => {
+        modalSettingsOpen = false;
+        updateModalSettingsBtnState();
+        renderKarmaModalContent();
+    });
+
+    const syncDrawerInput = (drawerId, val, isCheck = false) => {
+        const el = document.getElementById(drawerId);
+        if (!el) return;
+        if (isCheck) el.checked = Boolean(val);
+        else el.value = val;
+    };
+
+    const bindCheck = (id, key, drawerId) => {
+        bodyEl.querySelector(`#${id}`)?.addEventListener('change', (e) => {
+            settings[key] = Boolean(e.target.checked);
+            saveSettings();
+            syncExtensionPrompts();
+            updateFabBadge();
+            if (drawerId) syncDrawerInput(drawerId, settings[key], true);
+            if (key === 'useCustomApi') {
+                const fields = bodyEl.querySelector('#ke-ms-api-fields');
+                if (fields) fields.style.display = settings.useCustomApi ? 'flex' : 'none';
+                const drawerBox = document.getElementById('st-karma-custom-api-box');
+                if (drawerBox) drawerBox.style.display = settings.useCustomApi ? 'flex' : 'none';
+            }
+        });
+    };
+
+    const bindVal = (id, key, isNum, drawerId) => {
+        bodyEl.querySelector(`#${id}`)?.addEventListener('change', (e) => {
+            settings[key] = isNum ? Number(e.target.value) : String(e.target.value).trim();
+            saveSettings();
+            syncExtensionPrompts();
+            if (drawerId) syncDrawerInput(drawerId, settings[key], false);
+        });
+    };
+
+    bindCheck('ke-ms-enabled', 'enabled', 'st-karma-enabled');
+    bindCheck('ke-ms-show-fab', 'showFab', 'st-karma-show-fab');
+    bindCheck('ke-ms-show-badge', 'showChatBadge', 'st-karma-show-badge');
+    bindCheck('ke-ms-include-wi', 'includeWorldInfo', 'st-karma-include-wi');
+    bindCheck('ke-ms-custom-api', 'useCustomApi', 'st-karma-custom-api');
+
+    bindVal('ke-ms-judge-mode', 'judgeMode', false, 'st-karma-judge-mode');
+    bindVal('ke-ms-judge-interval', 'judgeInterval', true, 'st-karma-judge-interval');
+    bindVal('ke-ms-judge-chars', 'judgeMaxChars', true, 'st-karma-judge-chars');
+    bindVal('ke-ms-wi-chars', 'maxWorldInfoChars', true, 'st-karma-wi-chars');
+    bindVal('ke-ms-scan-chars', 'scanWorldInfoChars', true, 'st-karma-scan-chars');
+    bindVal('ke-ms-latent-turns', 'latentTurns', true, 'st-karma-latent-turns');
+    bindVal('ke-ms-threshold', 'triggerThreshold', true, 'st-karma-threshold');
+    bindVal('ke-ms-base-chance', 'baseTriggerChance', true, 'st-karma-base-chance');
+    bindVal('ke-ms-turn-weight', 'turnWeight', true, 'st-karma-turn-weight');
+    bindVal('ke-ms-cooldown', 'cooldownTurns', true, 'st-karma-cooldown');
+    bindVal('ke-ms-inject-depth', 'injectDepth', true, 'st-karma-inject-depth');
+
+    bindVal('ke-ms-api-url', 'customApiUrl', false, 'st-karma-api-url');
+    bindVal('ke-ms-api-key', 'customApiKey', false, 'st-karma-api-key');
+    bindVal('ke-ms-api-model', 'customApiModel', false, 'st-karma-api-model');
+
+    bodyEl.querySelector('#ke-ms-reset-fab')?.addEventListener('click', () => {
+        delete settings.fabLeft;
+        delete settings.fabTop;
+        saveSettings();
+        const fab = document.getElementById('st-karma-fab');
+        if (fab) {
+            fab.style.left = '';
+            fab.style.top = '';
+            fab.style.right = '';
+            fab.style.bottom = '';
+        }
+        if (typeof toastr !== 'undefined') toastr.info('已重置悬浮印章位置。', '因果回响');
+    });
+
+    bodyEl.querySelector('#ke-ms-test-api')?.addEventListener('click', async () => {
+        const url = bodyEl.querySelector('#ke-ms-api-url')?.value?.trim();
+        const key = bodyEl.querySelector('#ke-ms-api-key')?.value?.trim();
+        const model = bodyEl.querySelector('#ke-ms-api-model')?.value?.trim() || 'gpt-4o-mini';
+        const statusEl = bodyEl.querySelector('#ke-ms-test-status');
+        if (!url || !key) {
+            if (statusEl) statusEl.textContent = '❌ 请先填写 API 地址与 API Key';
+            return;
+        }
+        settings.customApiUrl = url;
+        settings.customApiKey = key;
+        settings.customApiModel = model;
+        saveSettings();
+
+        if (statusEl) statusEl.textContent = '⏳ 正在测试连接……';
+        try {
+            const baseUrl = url.replace(/\/+$/, '');
+            const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${key}`,
+                },
+                body: JSON.stringify({
+                    model,
+                    max_tokens: 16,
+                    temperature: 0,
+                    messages: [{ role: 'user', content: '请只回复 OK' }],
+                }),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${(await resp.text()).slice(0, 120)}`);
+            const data = await resp.json();
+            const reply = data?.choices?.[0]?.message?.content?.trim() || 'OK';
+            if (statusEl) statusEl.textContent = `✅ 连接成功（模型返回：${reply.slice(0, 20)}）`;
+            if (typeof toastr !== 'undefined') toastr.success(`独立 API 连接成功（${model}）`, '因果回响');
+        } catch (err) {
+            if (statusEl) statusEl.textContent = `❌ 连接失败：${err.message}`;
+            if (typeof toastr !== 'undefined') toastr.error(`独立 API 测试失败：${err.message}`, '因果回响');
+        }
+    });
+
+    bodyEl.querySelectorAll('.ke-alias-remove').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const alias = btn.getAttribute('data-alias');
+            const ledger = getChatLedger();
+            if (alias && ledger.aliases) {
+                delete ledger.aliases[alias];
+                await saveChatLedger();
+                renderModalSettingsView(bodyEl);
+            }
+        });
+    });
+
+    bodyEl.querySelector('#ke-ms-alias-add-btn')?.addEventListener('click', async () => {
+        const from = bodyEl.querySelector('#ke-ms-alias-from')?.value?.trim();
+        const to = bodyEl.querySelector('#ke-ms-alias-to')?.value?.trim();
+        if (!from || !to || from === to) {
+            if (typeof toastr !== 'undefined') toastr.warning('请填写不同的「别名/马甲」与「标准主名」。', '因果回响');
+            return;
+        }
+        mergeCharacterCards(from, to);
+        await saveChatLedger();
+        syncExtensionPrompts();
+        updateFabBadge();
+        renderModalSettingsView(bodyEl);
+        if (typeof toastr !== 'undefined') {
+            toastr.success(`已添加映射「${from} → ${to}」并合并相关记录。`, '因果回响');
+        }
+    });
+
+    bodyEl.querySelector('#ke-ms-alias-scan-btn')?.addEventListener('click', async () => {
+        const entries = await collectAllWorldInfoEntries();
+        const ledger = getChatLedger();
+        let mergedCount = 0;
+        for (const [alias, primary] of Object.entries(ledger.aliases || {})) {
+            if (ledger.characters?.[alias] && alias !== primary) {
+                mergeCharacterCards(alias, primary);
+                mergedCount++;
+            }
+        }
+        await saveChatLedger();
+        syncExtensionPrompts();
+        updateFabBadge();
+        renderModalSettingsView(bodyEl);
+        if (typeof toastr !== 'undefined') {
+            toastr.success(
+                `已扫描 ${entries.length} 条世界书，当前共识别 ${Object.keys(ledger.aliases || {}).length} 组角色别名${mergedCount ? `，自动合并了 ${mergedCount} 张重复卡片` : ''}。`,
+                '因果回响'
+            );
+        }
+    });
+}
+
+/**
  * 渲染主面板（新中式账簿视图）
  */
 function renderKarmaModalContent() {
     const bodyEl = document.getElementById('st-karma-modal-body');
     if (!bodyEl) return;
+
+    updateModalSettingsBtnState();
+    if (modalSettingsOpen) {
+        renderModalSettingsView(bodyEl);
+        return;
+    }
 
     const settings = getSettings();
     const ledger = getChatLedger();
@@ -1780,7 +2299,8 @@ function renderKarmaModalContent() {
                         <div class="ke-seed-body">
                             <span class="ke-seed-turn">T${s.turn || 0}</span>${s.target ? `<span class="ke-seed-target">→ ${escapeHtml(s.target)}</span>` : ''}${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}${s.repaidNote ? `<span class="ke-muted"> · ${escapeHtml(s.repaidNote)}</span>` : ''}${repaidUsedNote ? `<span class="ke-muted"> · ${escapeHtml(repaidUsedNote)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
                         </div>
-                        <span class="ke-seed-delta">${deltaText}</span>
+                        <span class="ke-seed-delta st-karma-edit-seed" data-char="${escapeHtml(c.name)}" data-seed="${escapeHtml(s.id)}" data-delta="${s.delta}" title="点击修改该条分值（输入 0 可删除）">${deltaText}</span>
+                        <button class="ke-seed-del st-karma-del-seed" data-char="${escapeHtml(c.name)}" data-seed="${escapeHtml(s.id)}" title="删除该条因果记录">✕</button>
                     </div>`;
                 }).join('');
 
@@ -1790,14 +2310,30 @@ function renderKarmaModalContent() {
                     ? `${r.dominantType === 'retribution' ? '报应' : '回馈'}池已蓄 ${r.dominantValue}，每回合自动检定`
                     : `酝酿中 · 已成熟 ${formatKarma(-r.matureEvil)} / ${formatKarma(r.matureGood)} · 潜伏 ${formatKarma(-r.latentEvil)} / ${formatKarma(r.latentGood)}`);
 
+            const otherChars = chars.filter(o => o.name !== c.name);
+            const mergeBtnHtml = otherChars.length > 0
+                ? `<button class="ke-icon-btn st-karma-merge-toggle" data-char="${escapeHtml(c.name)}" title="同名/马甲合并：将该角色合并入另一角色名下">⇄</button>`
+                : '';
+            const mergeBarHtml = otherChars.length > 0
+                ? `<div class="ke-merge-bar" data-merge-bar="${escapeHtml(c.name)}" style="display:none;">
+                    <span>将「${escapeHtml(c.name)}」合并入：</span>
+                    <select class="ke-merge-select">
+                        ${otherChars.map(o => `<option value="${escapeHtml(o.name)}">${escapeHtml(o.name)}</option>`).join('')}
+                    </select>
+                    <button class="st-karma-btn karma-btn-primary st-karma-merge-confirm" data-from="${escapeHtml(c.name)}">确认合并</button>
+                </div>`
+                : '';
+
             return `<div class="st-karma-char-card ${alertClass}">
                 <div class="ke-card-name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</div>
                 <div class="ke-card-main">
                     <div class="ke-card-head">
                         <div class="ke-card-score tone-${tone}">${formatKarma(c.totalKarma)}<span>${escapeHtml(tier.aura)}</span></div>
                         <span class="ke-seal ${sealTone}">${escapeHtml(tier.title)}</span>
+                        ${mergeBtnHtml}
                         <button class="ke-icon-btn st-karma-delete-char" data-char="${escapeHtml(c.name)}" title="移除该角色记录">✕</button>
                     </div>
+                    ${mergeBarHtml}
 
                     <div class="ke-scale">
                         <div class="ke-scale-labels">
@@ -2000,6 +2536,67 @@ function bindModalInnerEvents() {
             syncExtensionPrompts();
             renderKarmaModalContent();
             updateFabBadge();
+        });
+    });
+
+    bodyEl.querySelectorAll('.st-karma-merge-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const charName = btn.getAttribute('data-char');
+            const card = btn.closest('.st-karma-char-card');
+            const bar = card?.querySelector('.ke-merge-bar');
+            if (bar) {
+                bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+            }
+        });
+    });
+
+    bodyEl.querySelectorAll('.st-karma-merge-confirm').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const fromChar = btn.getAttribute('data-from');
+            const bar = btn.closest('.ke-merge-bar');
+            const toChar = bar?.querySelector('.ke-merge-select')?.value;
+            if (!fromChar || !toChar || fromChar === toChar) return;
+            mergeCharacterCards(fromChar, toChar);
+            await saveChatLedger();
+            syncExtensionPrompts();
+            renderKarmaModalContent();
+            updateFabBadge();
+            if (typeof toastr !== 'undefined') {
+                toastr.success(`已将【${fromChar}】合并入【${toChar}】，后续将自动归一。`, '因果回响');
+            }
+        });
+    });
+
+    bodyEl.querySelectorAll('.st-karma-del-seed').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const charName = btn.getAttribute('data-char');
+            const seedId = btn.getAttribute('data-seed');
+            if (!charName || !seedId) return;
+            if (deleteSeedById(charName, seedId)) {
+                await saveChatLedger();
+                syncExtensionPrompts();
+                renderKarmaModalContent();
+                updateFabBadge();
+            }
+        });
+    });
+
+    bodyEl.querySelectorAll('.st-karma-edit-seed').forEach(el => {
+        el.addEventListener('click', async () => {
+            const charName = el.getAttribute('data-char');
+            const seedId = el.getAttribute('data-seed');
+            const curDelta = Number(el.getAttribute('data-delta') || 0);
+            const raw = prompt(`修改【${charName}】该条因果的分值（正数为善，负数为恶，输入 0 删除该条）：`, String(curDelta));
+            if (raw === null) return;
+            const num = Math.round(Number(raw));
+            if (isNaN(num)) return;
+            if (updateSeedDeltaById(charName, seedId, num)) {
+                await saveChatLedger();
+                syncExtensionPrompts();
+                renderKarmaModalContent();
+                updateFabBadge();
+            }
         });
     });
 
@@ -2227,6 +2824,7 @@ function initUI() {
                     </div>
                     <div class="ke-header-right">
                         <div class="ke-vertical-note">延时因果<br/>剧情回旋</div>
+                        <button id="st-karma-modal-settings-btn" class="st-karma-btn ke-settings-toggle-btn" title="设置与独立 API / 别名归一">⚙ 设置</button>
                         <button id="st-karma-modal-close" class="st-karma-btn ke-close-btn" title="关闭">✕</button>
                     </div>
                 </div>
@@ -2237,6 +2835,10 @@ function initUI() {
             if (e.target === modalBackdrop) closeKarmaModal();
         });
         document.body.appendChild(modalBackdrop);
+        document.getElementById('st-karma-modal-settings-btn')?.addEventListener('click', () => {
+            modalSettingsOpen = !modalSettingsOpen;
+            renderKarmaModalContent();
+        });
         document.getElementById('st-karma-modal-close')?.addEventListener('click', closeKarmaModal);
     }
 
