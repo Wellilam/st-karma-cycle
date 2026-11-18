@@ -62,6 +62,7 @@ const DEFAULT_SETTINGS = {
     maxWorldInfoChars: 10000,  // 每回合判定时附带的世界书字数上限
     scanWorldInfoChars: 50000, // 开局扫描时交给模型阅读的世界书字数上限
     settingsVersion: 2,
+    customRules: '',          // 用户自定义的善恶判定准则（优先级最高）
 
     // 延时概率检定参数
     latentTurns: 3,         // 潜伏回合数
@@ -380,6 +381,80 @@ async function buildFullLoreContext() {
 }
 
 /**
+ * 因果记账核心原则（判定、开局扫描、正文内嵌标签共用）
+ */
+const KARMA_CORE_RULES = `=== 因果记账原则（务必遵守） ===
+1. 一事一条：每条记录只写一个具体行为。同一角色的功与过必须拆成多条，严禁把好事和坏事合并成一条，也严禁把一整段前史打包成一条大分。单条分值 ±5 ~ ±50。
+2. 写明对象：用 target 写清这件事是对谁做的（针对群体或世界可写“众人”）。
+3. 恩怨双向：两人之间的恩与债要双向记账，各记在行为人名下，最后由系统自动相抵。
+   例：甲家抚养乙长大（甲方 +）；乙冲动出头连累甲家覆灭（乙方 −）；甲之子为救乙引开追兵被擒（甲之子 +）；乙剖丹相赠（乙方 +）；甲之子后来率众围剿乙（甲之子 −）——应分成五条分别记录。
+4. 报恩与报复：报恩照常按行为本身的分量打分并写明对象即可，系统会自动用它抵扣对方的旧恩，你不需要自己打折；恩将仇报从重；以怨报怨可酌情减轻。
+5. 动机与后果并重：好心办坏事按实际后果扣分，但轻于蓄意作恶；被迫之举酌情减轻。`;
+
+function buildRulesBlock(compact = false) {
+    const custom = String(getSettings().customRules || '').trim();
+    const core = compact
+        ? '功与过分条记录、写明对象（target）；恩怨双向记账，报恩照常打分（系统自动抵扣旧恩），恩将仇报从重。'
+        : KARMA_CORE_RULES;
+    return custom
+        ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
+        : core;
+}
+
+/**
+ * 汇总角色之间尚未结清的恩怨（按 行为人→对象 分组并给出净值）
+ */
+function collectRelations(ledger) {
+    const pairs = new Map();
+    for (const c of Object.values(ledger.characters || {})) {
+        for (const s of (c.seeds || [])) {
+            if (s.settled || !s.target) continue;
+            const rem = s.remainingDelta ?? s.delta;
+            if (!rem) continue;
+            const key = `${c.name}→${s.target}`;
+            if (!pairs.has(key)) pairs.set(key, { from: c.name, to: s.target, net: 0, items: [] });
+            const p = pairs.get(key);
+            p.net += rem;
+            p.items.push({ deed: s.deed, value: rem });
+        }
+    }
+    return [...pairs.values()];
+}
+
+function buildRelationSummary(ledger, maxLines = 30) {
+    return collectRelations(ledger)
+        .slice(0, maxLines)
+        .map(p => `- ${p.from} → ${p.to}：${p.items.map(i => `${i.deed} ${formatKarma(i.value)}`).join('；')}（净 ${formatKarma(p.net)}）`)
+        .join('\n');
+}
+
+function readTarget(item) {
+    return String(item.target || item.to || item.object || '').trim();
+}
+
+const CUSTOM_RULES_PLACEHOLDER = `例如：
+- 养育之恩视为重恩（+30 起步），恩将仇报加倍扣分
+- 为保护家人说谎不算负面
+- 修鬼道本身不扣分，只看用它做了什么
+- 魏无羡与江澄之间的恩怨要逐件对冲，不要只给一方记分`;
+
+function bindRulesTextarea(id) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.keBound) return;
+    el.dataset.keBound = '1';
+    el.addEventListener('input', () => {
+        const settings = getSettings();
+        settings.customRules = el.value;
+        saveSettings();
+        syncExtensionPrompts();
+        for (const otherId of ['st-karma-custom-rules', 'st-karma-modal-rules']) {
+            const other = document.getElementById(otherId);
+            if (other && other !== el && other.value !== el.value) other.value = el.value;
+        }
+    });
+}
+
+/**
  * 记录一条新的因果伏笔事件
  */
 function recordKarmaEvent(charName, delta, deed, options = {}) {
@@ -410,18 +485,54 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
         ? Number(options.minDelayTurns)
         : Number(settings.latentTurns ?? 3);
 
+    const target = options.target ? String(options.target).trim() : '';
+
+    // 报恩抵债：A 对 B 行善时，如果 B 之前对 A 有未结的恩情，先用来偿还旧恩。
+    // 偿还的部分双方都不再计功（B 的恩已得回报，A 的付出只是还债），只有超出旧恩的部分才算 A 的新功德。
+    let repaid = 0;
+    const repaidFrom = [];
+    if (numDelta > 0 && target) {
+        const matches = (name, t) => !!t && (t === name || t.includes(name));
+        for (const other of Object.values(ledger.characters)) {
+            if (other.name === cleanName || !matches(other.name, target)) continue;
+            const favors = (other.seeds || [])
+                .filter(s => !s.settled && (s.remainingDelta ?? s.delta) > 0 && matches(cleanName, s.target))
+                .sort((a, b) => (a.turn || 0) - (b.turn || 0));
+            for (const fav of favors) {
+                const left = numDelta - repaid;
+                if (left <= 0) break;
+                const rem = fav.remainingDelta ?? fav.delta;
+                const take = Math.min(rem, left);
+                fav.remainingDelta = rem - take;
+                other.totalKarma -= take;
+                if (fav.remainingDelta <= 0) {
+                    fav.remainingDelta = 0;
+                    fav.settled = true;
+                    fav.repaid = true;
+                    fav.settledTurn = turn;
+                }
+                repaid += take;
+                repaidFrom.push(`${other.name}「${fav.deed.replace(/^\[前史\]\s*/, '')}」${take}`);
+            }
+        }
+    }
+    charRec.totalKarma -= repaid; // 已偿还的部分不计入新功德
+
     const seed = {
         id: `seed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         character: cleanName,
         turn,
         delta: numDelta,
-        remainingDelta: numDelta,
+        remainingDelta: numDelta - repaid,
         deed: String(deed || (numDelta > 0 ? '正向善举' : '负面行为')).trim(),
-        target: options.target ? String(options.target).trim() : '',
+        target,
         ruleRef: options.ruleRef ? String(options.ruleRef).trim() : '',
         minDelayTurns: Math.max(0, minDelay),
-        settled: false,
-        settledTurn: null,
+        settled: numDelta - repaid === 0,
+        settledTurn: numDelta - repaid === 0 ? turn : null,
+        repaidAmount: repaid,
+        repaidNote: repaidFrom.length ? `抵还旧恩：${repaidFrom.join('、')}` : '',
+        repaid: numDelta - repaid === 0 && repaid > 0,
     };
 
     charRec.seeds.push(seed);
@@ -439,6 +550,7 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
         character: cleanName,
         delta: numDelta,
         deed: seed.deed,
+        target: seed.target,
         ruleRef: seed.ruleRef,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
@@ -492,9 +604,13 @@ function calculateCharacterRoulette(charRec, currentTurn) {
     const turnsSinceLastSettle = currentTurn - (charRec.lastSettlementTurn ?? -999);
     const inCooldown = turnsSinceLastSettle < (settings.cooldownTurns ?? 4);
 
-    const dominantType = matureEvil >= matureGood ? 'retribution' : 'blessing';
-    const dominantValue = dominantType === 'retribution' ? matureEvil : matureGood;
-    const dominantSeeds = dominantType === 'retribution' ? matureEvilSeeds : matureGoodSeeds;
+    // 善恶相抵：只看已成熟部分的净值，相反方向的记录作为“抵消项”
+    const net = matureGood - matureEvil;
+    const dominantType = net < 0 ? 'retribution' : 'blessing';
+    const dominantValue = Math.abs(net);
+    const dominantSeeds = net < 0 ? matureEvilSeeds : matureGoodSeeds;
+    const offsetSeeds = net < 0 ? matureGoodSeeds : matureEvilSeeds;
+    const offsetValue = Math.min(matureGood, matureEvil);
 
     const threshold = Number(settings.triggerThreshold ?? 25);
     let triggerChance = 0;
@@ -525,6 +641,8 @@ function calculateCharacterRoulette(charRec, currentTurn) {
         dominantType,
         dominantValue,
         dominantSeeds,
+        offsetSeeds,
+        offsetValue,
         triggerChance,
     };
 }
@@ -568,54 +686,52 @@ function buildSettlementDirective(charRec, roulette, rollValue = 1, isManual = f
     const ledger = getChatLedger();
     const currentTurn = ledger.turnCounter;
 
-    let targetSeeds = roulette.dominantSeeds;
+    let targetSeeds = roulette.dominantSeeds || [];
+    let offsetSeeds = roulette.offsetSeeds || [];
     let direction = roulette.dominantType;
     let magnitude = roulette.dominantValue;
 
-    if ((!targetSeeds || targetSeeds.length === 0) && isManual) {
-        const unsettled = (charRec.seeds || []).filter(s => !s.settled && (s.remainingDelta || s.delta));
-        const evilSeeds = unsettled.filter(s => (s.remainingDelta ?? s.delta) < 0);
-        const goodSeeds = unsettled.filter(s => (s.remainingDelta ?? s.delta) > 0);
-        const evilSum = evilSeeds.reduce((acc, s) => acc + Math.abs(s.remainingDelta ?? s.delta), 0);
-        const goodSum = goodSeeds.reduce((acc, s) => acc + (s.remainingDelta ?? s.delta), 0);
-
-        if (evilSum === 0 && goodSum === 0) {
-            direction = charRec.totalKarma < 0 ? 'retribution' : 'blessing';
-            magnitude = Math.max(30, Math.abs(charRec.totalKarma));
-            targetSeeds = [];
-        } else if (evilSum >= goodSum) {
-            direction = 'retribution';
-            magnitude = evilSum;
-            targetSeeds = evilSeeds;
-        } else {
-            direction = 'blessing';
-            magnitude = goodSum;
-            targetSeeds = goodSeeds;
-        }
+    if (isManual) {
+        // 手动触发：按指定方向取同号的未结记录（不论是否成熟），不做抵消
+        const unsettled = (charRec.seeds || []).filter(s => !s.settled && (s.remainingDelta ?? s.delta));
+        targetSeeds = unsettled.filter(s => {
+            const rem = s.remainingDelta ?? s.delta;
+            return direction === 'retribution' ? rem < 0 : rem > 0;
+        });
+        offsetSeeds = [];
+        const sum = targetSeeds.reduce((acc, s) => acc + Math.abs(s.remainingDelta ?? s.delta), 0);
+        magnitude = Math.max(30, sum);
     }
 
     const signedMagnitude = direction === 'retribution' ? -magnitude : magnitude;
     const tierInfo = getKarmaTierInfo(signedMagnitude);
 
-    const deedSummaries = targetSeeds.slice(0, 5).map(s => {
+    const describeSeed = s => {
         const turnLabel = s.turn ? `第${s.turn}回合` : '前史';
+        const targetNote = s.target ? `（对${s.target}）` : '';
         const ruleNote = s.ruleRef ? `（关联：${s.ruleRef}）` : '';
-        return `「${turnLabel}：${s.deed}${ruleNote}」`;
-    });
+        return `「${turnLabel}：${s.deed}${targetNote}${ruleNote}」`;
+    };
+
+    const deedSummaries = targetSeeds.slice(0, 5).map(describeSeed);
 
     const deedsText = deedSummaries.length > 0
         ? deedSummaries.join('、')
         : (direction === 'retribution' ? '「此前积累的负面行为与亏欠」' : '「此前积累的善意与付出」');
 
+    const offsetNote = offsetSeeds.length > 0
+        ? `\n（其间也有相反方向的行为：${offsetSeeds.slice(0, 3).map(describeSeed).join('、')}，已相互抵消；以下分值为抵消后的净值，叙事中可体现功过交织、恩怨难分的复杂性。）`
+        : '';
+
     const promptInstruction = direction === 'retribution'
         ? `[因果回响导演指令 · 负面报应触发]
-角色【${charRec.name}】此前曾有以下行为伏笔：${deedsText}，累积待结算负面分值达 ${magnitude}（反噬烈度：${tierInfo.severityName}）。
+角色【${charRec.name}】此前曾有以下行为伏笔：${deedsText}，累积待结算负面分值达 ${magnitude}（反噬烈度：${tierInfo.severityName}）。${offsetNote}
 时机已成熟，请在本轮回复的剧情推进中，自然但明确地让【${charRec.name}】遭遇一次与上述过往行为相呼应的【现实反噬/回旋镖报应】！
 叙事要求：
 1. 表现方式必须严格贴合当前故事题材与现实逻辑（例如：隐瞒欺骗则真相败露或信任崩塌、算计他人则搬起石头砸自己的脚、违背规则或契约则承担相应代价、埋下的隐患在关键时刻爆发），严禁跨题材出现违和词汇。
 2. 冲突烈度需匹配【${tierInfo.severityName}】，通过剧情细节形成前后呼应的宿命感，切勿在正文中直接提及任何数值或系统指令。`
         : `[因果回响导演指令 · 正向回馈触发]
-角色【${charRec.name}】此前曾有以下正向伏笔：${deedsText}，累积待结算正向分值达 ${magnitude}（回馈等级：${tierInfo.severityName}）。
+角色【${charRec.name}】此前曾有以下正向伏笔：${deedsText}，累积待结算正向分值达 ${magnitude}（回馈等级：${tierInfo.severityName}）。${offsetNote}
 时机已成熟，请在本轮回复的剧情推进中，自然但明确地让【${charRec.name}】收获一次与上述过往善意或付出相呼应的【正向回馈/意外转机】！
 叙事要求：
 1. 表现方式必须严格贴合当前故事题材与人物关系逻辑（例如：曾帮助过的人在关键时刻伸出援手、守信重诺赢得关键信任或筹码、困境中迎来意想不到的转机或有利局面），严禁跨题材出现违和词汇。
@@ -629,6 +745,7 @@ function buildSettlementDirective(charRec, roulette, rollValue = 1, isManual = f
         severityName: tierInfo.severityName,
         deedsText,
         seedIds: targetSeeds.map(s => s.id),
+        offsetSeedIds: offsetSeeds.map(s => s.id),
         rollValue,
         triggerChance: isManual ? 100 : roulette.triggerChance,
         createdTurn: currentTurn,
@@ -654,6 +771,38 @@ function finalizePendingSettlements() {
         if (charRec) {
             charRec.lastSettlementTurn = currentTurn;
 
+            // 第一步：相反方向的记录与主方向相互抵消（净值不变，所以不动 totalKarma）
+            const offsetIds = Array.isArray(item.offsetSeedIds) ? item.offsetSeedIds : [];
+            let offsetPool = 0;
+            for (const seed of (charRec.seeds || [])) {
+                if (offsetIds.includes(seed.id) && !seed.settled) {
+                    offsetPool += Math.abs(seed.remainingDelta ?? seed.delta);
+                    seed.remainingDelta = 0;
+                    seed.settled = true;
+                    seed.offset = true;
+                    seed.settledTurn = currentTurn;
+                }
+            }
+            if (offsetPool > 0) {
+                const dominantSeeds = (charRec.seeds || [])
+                    .filter(s => item.seedIds.includes(s.id) && !s.settled)
+                    .sort((a, b) => (a.turn || 0) - (b.turn || 0));
+                for (const seed of dominantSeeds) {
+                    if (offsetPool <= 0) break;
+                    const rem = seed.remainingDelta ?? seed.delta;
+                    const take = Math.min(Math.abs(rem), offsetPool);
+                    seed.remainingDelta = rem - Math.sign(rem) * take;
+                    offsetPool -= take;
+                    if (Math.abs(seed.remainingDelta) <= 0) {
+                        seed.remainingDelta = 0;
+                        seed.settled = true;
+                        seed.offset = true;
+                        seed.settledTurn = currentTurn;
+                    }
+                }
+            }
+
+            // 第二步：抵消后的净值按比例结算
             for (const seed of (charRec.seeds || [])) {
                 if (item.seedIds.includes(seed.id) && !seed.settled) {
                     const rem = seed.remainingDelta !== undefined ? seed.remainingDelta : seed.delta;
@@ -661,6 +810,7 @@ function finalizePendingSettlements() {
                     seed.remainingDelta = rem - settledAmount;
                     charRec.totalKarma -= settledAmount;
                     if (Math.abs(seed.remainingDelta) <= 3 || ratio >= 0.95) {
+                        charRec.totalKarma -= seed.remainingDelta; // 零头一并结清，避免总值残留
                         seed.remainingDelta = 0;
                         seed.settled = true;
                         seed.settledTurn = currentTurn;
@@ -739,8 +889,9 @@ function syncExtensionPrompts() {
         const inlineRulePrompt = `[因果回响记录协议]
 在每次正文回复的最末尾，请结合当前世界观准则评估出场角色在本轮是否有显著的正向行为（守信、助人、承担责任、真诚付出等）或负面行为（欺瞒、背叛、伤害无辜、算计利用、违背契约等）。
 若有显著行为，请在正文结束后另起一行附上隐藏标签（若无明显善恶事件则输出 <karma>[]</karma>）：
-<karma>[{"char":"角色名","delta":-20,"deed":"简述本回合结下的因果事件","rule":"关联的准则或原因","delay":3}]</karma>
-（说明：delta 正数为正向积累 +5~+50，负数为负面积累 -5~-50；delay 为回旋镖潜伏回合数，常规为 2~5）`;
+<karma>[{"char":"行为人","target":"行为对象","delta":-20,"deed":"简述本回合结下的因果事件","rule":"关联的准则或原因","delay":3}]</karma>
+（说明：delta 正数为正向积累 +5~+50，负数为负面积累 -5~-50；delay 为回旋镖潜伏回合数，常规为 2~5）
+记账规则：${buildRulesBlock(true)}`;
 
         ctx.setExtensionPrompt(
             PROMPT_KEY_INLINE_RULE,
@@ -779,7 +930,7 @@ function parseAndStripInlineKarmaTags(messageObj) {
             const minDelayTurns = item.delay !== undefined ? Number(item.delay) : undefined;
 
             if (charName && delta !== 0) {
-                const seed = recordKarmaEvent(charName, delta, deed, { ruleRef, minDelayTurns });
+                const seed = recordKarmaEvent(charName, delta, deed, { ruleRef, minDelayTurns, target: readTarget(item) });
                 if (seed) recordedEvents.push(seed);
             }
         }
@@ -958,25 +1109,29 @@ async function judgeLatestTurnWithAI(isManual = false, endIndex = null) {
     const recentMessages = batch.text;
     const rangeNote = `第 ${batch.from} ~ ${batch.end} 楼，共 ${batch.count} 条${batch.skippedHidden ? `，已跳过 ${batch.skippedHidden} 条隐藏楼层` : ''}`;
     const existingChars = Object.keys(ledger.characters).join('、') || '暂无记录';
+    const relationSummary = buildRelationSummary(ledger);
 
     const judgePrompt = `请结合【角色与世界书设定】以及【待判定剧情】，客观分析这段剧情中是否有角色埋下了显著的正向善因或负面恶因。
 
 ${worldLore ? `${worldLore}\n\n` : ''}=== 已知在册角色 ===
 ${existingChars}
-
+${relationSummary ? `\n=== 角色之间尚未结清的恩怨（判定时参考，用于权衡报恩/报复，不要重复记录） ===\n${relationSummary}\n` : ''}
 === 待判定剧情（${rangeNote}） ===
 ${recentMessages}
 
-=== 评估准则 ===
+${buildRulesBlock()}
+
+=== 本次评估要求 ===
 1. 依据故事所在世界观的规则、契约、人物关系伦理与普世价值进行评估：
-   - 正向分（+5 到 +50）：危急相助、信守承诺、保护他人、坦诚担当、遵守关键契约或底线等。
-   - 负面分（-5 到 -50）：欺瞒背叛、暗中算计、伤害无辜、转嫁灾祸、违背誓言或世界观禁忌等。
-2. 只针对上面【待判定剧情】中新发生的行为计分，同一件事只记一次；之前已结算过的旧事不要重复统计。
+   - 正向（+）：危急相助、信守承诺、保护他人、坦诚担当、遵守关键契约或底线等。
+   - 负面（−）：欺瞒背叛、暗中算计、伤害无辜、转嫁灾祸、违背誓言或世界观禁忌等。
+2. 只针对上面【待判定剧情】中新发生的行为计分，同一件事只记一次；已有的旧恩怨只用来权衡，不要重复记录。
 3. 若这段剧情只是日常互动、无明显因果倾向，请直接返回空数组 []。
 4. 仅输出纯 JSON 数组，格式如下：
 [
   {
-    "char": "角色姓名",
+    "char": "行为人",
+    "target": "行为对象",
     "delta": -20,
     "deed": "简述具体事件（25字以内）",
     "rule": "关联准则或原因（15字以内）",
@@ -1016,7 +1171,7 @@ ${recentMessages}
             const minDelayTurns = item.delay !== undefined ? Number(item.delay) : undefined;
 
             if (charName && delta !== 0) {
-                const seed = recordKarmaEvent(charName, delta, deed, { ruleRef, minDelayTurns });
+                const seed = recordKarmaEvent(charName, delta, deed, { ruleRef, minDelayTurns, target: readTarget(item) });
                 if (seed) recorded.push(seed);
             }
         }
@@ -1054,15 +1209,20 @@ async function scanWorldLoreForInitialKarma() {
         return;
     }
 
-    const scanPrompt = `请阅读以下【角色档案与世界书设定】，梳理出登场的主要角色，并根据他们在背景前史中的关键行为（例如：曾亏欠、背叛、隐瞒他人，或曾有救命之恩、守护付出等未了前事），建立初始的“待结算因果伏笔”。
+    const scanPrompt = `请通读以下【角色档案与世界书设定】，梳理主要角色在背景前史中的关键行为（亏欠、背叛、隐瞒、连累他人，或救命之恩、养育之恩、守护付出等未了前事），建立初始的“待结算因果伏笔”。
 
 ${worldLore}
 
+${buildRulesBlock()}
+
 === 输出要求 ===
-仅输出纯 JSON 数组（语言需现代简洁，贴合故事原本题材）：
+1. 按上面的记账原则逐件列出：一件事一条，功过分开，写明行为人与对象；同一对人物之间的恩与债要双向都列出来。
+2. 只列对后续剧情可能产生回响的事件，宁可多拆几条，也不要合并。
+3. 仅输出纯 JSON 数组（语言简洁，贴合故事原本题材）：
 [
   {
-    "char": "角色名",
+    "char": "行为人",
+    "target": "行为对象",
     "delta": -30,
     "deed": "前史事件简述（如：三年前隐瞒真相导致同伴蒙冤）",
     "rule": "关联准则或前因",
@@ -1107,7 +1267,7 @@ ${worldLore}
             const minDelayTurns = item.delay !== undefined ? Number(item.delay) : 2;
 
             if (charName && delta !== 0) {
-                recordKarmaEvent(charName, delta, `[前史] ${deed}`, { ruleRef, minDelayTurns });
+                recordKarmaEvent(charName, delta, `[前史] ${deed}`, { ruleRef, minDelayTurns, target: readTarget(item) });
                 count++;
             }
         }
@@ -1378,6 +1538,7 @@ function renderKarmaModalContent() {
     }
 
     // 2. 角色卡
+    const relationsAll = collectRelations(ledger);
     let cardsHtml = '';
     if (chars.length === 0) {
         cardsHtml = `<div class="st-karma-empty-state">
@@ -1411,13 +1572,19 @@ function renderKarmaModalContent() {
                     const waited = Math.max(0, currentTurn - (s.turn || 0));
                     const reqWait = s.minDelayTurns !== undefined ? s.minDelayTurns : settings.latentTurns;
                     const state = s.settled ? 'settled' : (waited >= reqWait ? 'mature' : 'latent');
-                    const stateLabel = state === 'settled' ? '已结' : (state === 'mature' ? '待发' : `潜伏 ${waited}/${reqWait}`);
+                    const stateLabel = state === 'settled'
+                        ? (s.offset ? '已相抵' : (s.repaid ? '恩已偿' : '已结'))
+                        : (state === 'mature' ? '待发' : `潜伏 ${waited}/${reqWait}`);
+                    const remNow = s.remainingDelta ?? s.delta;
+                    const deltaText = (!s.settled && remNow !== s.delta)
+                        ? `<span class="ke-muted" style="text-decoration:line-through; margin-right:4px;">${formatKarma(s.delta)}</span>${formatKarma(remNow)}`
+                        : formatKarma(s.delta);
                     return `<div class="ke-seed ${sTone} ${state}">
                         <i class="ke-seed-dot"></i>
                         <div class="ke-seed-body">
-                            <span class="ke-seed-turn">T${s.turn || 0}</span>${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
+                            <span class="ke-seed-turn">T${s.turn || 0}</span>${s.target ? `<span class="ke-seed-target">→ ${escapeHtml(s.target)}</span>` : ''}${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}${s.repaidNote ? `<span class="ke-muted"> · ${escapeHtml(s.repaidNote)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
                         </div>
-                        <span class="ke-seed-delta">${formatKarma(s.delta)}</span>
+                        <span class="ke-seed-delta">${deltaText}</span>
                     </div>`;
                 }).join('');
 
@@ -1448,6 +1615,15 @@ function renderKarmaModalContent() {
                             <div class="ke-scale-weight" style="left:${pos}%;"></div>
                         </div>
                     </div>
+
+                    ${(() => {
+                        const rels = relationsAll.filter(p => p.from === c.name);
+                        if (!rels.length) return '';
+                        return `<div class="ke-relations">
+                            <span class="ke-relations-label">恩怨相抵</span>
+                            ${rels.map(p => `<span class="ke-rel tone-${karmaTone(p.net, 1)}" title="${escapeHtml(p.items.map(i => `${i.deed}  ${formatKarma(i.value)}`).join('\n'))}">→ ${escapeHtml(p.to)} <b>${formatKarma(p.net)}</b>${p.items.length > 1 ? `<i>${p.items.length} 笔</i>` : ''}</span>`).join('')}
+                        </div>`;
+                    })()}
 
                     <div class="ke-check">
                         <div class="ke-check-row">
@@ -1514,6 +1690,12 @@ function renderKarmaModalContent() {
 
         ${cardsHtml}
 
+        <div class="st-karma-section-title">判定准则</div>
+        <div class="ke-rules-box">
+            <div class="ke-rules-hint">内置原则：一事一条、功过分开、写明对象、恩怨双向相抵、报恩只抵旧债。下面写你自己的规则，会以<strong>最高优先级</strong>交给模型。</div>
+            <textarea id="st-karma-modal-rules" rows="4" placeholder="${escapeHtml(CUSTOM_RULES_PLACEHOLDER)}">${escapeHtml(settings.customRules || '')}</textarea>
+        </div>
+
         <div class="st-karma-section-title">手录一笔</div>
         <div class="st-karma-manual-form">
             <input id="st-karma-manual-char" type="text" placeholder="角色姓名" style="width:120px;" />
@@ -1534,6 +1716,8 @@ function renderKarmaModalContent() {
 function bindModalInnerEvents() {
     const bodyEl = document.getElementById('st-karma-modal-body');
     if (!bodyEl) return;
+
+    bindRulesTextarea('st-karma-modal-rules');
 
     bodyEl.querySelector('#st-karma-btn-scan-lore')?.addEventListener('click', async () => {
         await scanWorldLoreForInitialKarma();
@@ -1705,6 +1889,10 @@ function initUI() {
                     <div class="st-karma-row">
                         <label><input id="st-karma-include-wi" type="checkbox" ${settings.includeWorldInfo ? 'checked' : ''} /> 结合世界书 (World Info) 与角色设定</label>
                     </div>
+                    <div class="st-karma-row" style="flex-direction:column; align-items:stretch; gap:4px;">
+                        <label title="会以最高优先级交给判定模型，与内置原则冲突时以这里为准">自定义判定准则（最高优先级）</label>
+                        <textarea id="st-karma-custom-rules" class="text_pole" rows="5" placeholder="${escapeHtml(CUSTOM_RULES_PLACEHOLDER)}">${escapeHtml(settings.customRules || '')}</textarea>
+                    </div>
                     <div class="st-karma-row">
                         <small id="st-karma-wi-status" style="opacity:0.75; line-height:1.5;">自动读取酒馆每轮实际激活的世界书条目，无需配置关键词。</small>
                     </div>
@@ -1819,6 +2007,7 @@ function bindSettingsEvents() {
     const settings = getSettings();
 
     document.getElementById('st-karma-open-modal-btn')?.addEventListener('click', openKarmaModal);
+    bindRulesTextarea('st-karma-custom-rules');
 
     const bindCheck = (id, key) => {
         document.getElementById(id)?.addEventListener('change', (e) => {
