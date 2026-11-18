@@ -57,10 +57,11 @@ const DEFAULT_SETTINGS = {
     // 判定模式: 'hybrid' | 'inline' | 'quiet'
     judgeMode: 'hybrid',
     judgeInterval: 1,       // 每 N 次 AI 回复做一次后台判定
-    judgeMaxChars: 8000,    // 单次判定最多读取的剧情字数（超出时优先保留最新楼层）
+    judgeMaxChars: 20000,   // 单次判定最多读取的剧情字数（超出时优先保留最新楼层）
     includeWorldInfo: true,
-    maxWorldInfoChars: 3000,   // 每回合判定时附带的世界书字数上限
-    scanWorldInfoChars: 12000, // 开局扫描时交给模型阅读的世界书字数上限
+    maxWorldInfoChars: 10000,  // 每回合判定时附带的世界书字数上限
+    scanWorldInfoChars: 50000, // 开局扫描时交给模型阅读的世界书字数上限
+    settingsVersion: 2,
 
     // 延时概率检定参数
     latentTurns: 3,         // 潜伏回合数
@@ -118,14 +119,30 @@ function getSettings() {
     }
     if (!ctx.extensionSettings[MODULE_NAME]) {
         ctx.extensionSettings[MODULE_NAME] = structuredClone(DEFAULT_SETTINGS);
-    } else {
-        for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-            if (ctx.extensionSettings[MODULE_NAME][k] === undefined) {
-                ctx.extensionSettings[MODULE_NAME][k] = v;
-            }
+        return ctx.extensionSettings[MODULE_NAME];
+    }
+
+    const s = ctx.extensionSettings[MODULE_NAME];
+    const storedVersion = Number(s.settingsVersion) || 1;
+
+    for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
+        if (s[k] === undefined) {
+            s[k] = v;
         }
     }
-    return ctx.extensionSettings[MODULE_NAME];
+
+    // v2：早期版本的读取上限太保守，低于新默认值的一律抬上来（之后用户再改的值会被保留）
+    if (storedVersion < 2) {
+        for (const k of ['maxWorldInfoChars', 'scanWorldInfoChars', 'judgeMaxChars']) {
+            if (!(Number(s[k]) >= DEFAULT_SETTINGS[k])) {
+                s[k] = DEFAULT_SETTINGS[k];
+            }
+        }
+        s.settingsVersion = 2;
+        if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+    }
+
+    return s;
 }
 
 function saveSettings() {
@@ -335,7 +352,7 @@ async function buildTurnLoreContext() {
         }
         // 被剧情关键词触发的条目比常驻条目更贴近当前情节，排在前面
         const sorted = [...entries].sort((a, b) => Number(a.constant) - Number(b.constant));
-        const { text } = formatWorldInfoEntries(sorted, Number(settings.maxWorldInfoChars) || 3000, 600);
+        const { text } = formatWorldInfoEntries(sorted, Number(settings.maxWorldInfoChars) || 10000, 1500);
         if (text) parts.push(`=== 本轮相关的世界书设定 ===\n${text}`);
     }
 
@@ -353,7 +370,7 @@ async function buildFullLoreContext() {
 
     if (settings.includeWorldInfo) {
         const all = await collectAllWorldInfoEntries();
-        const res = formatWorldInfoEntries(all, Number(settings.scanWorldInfoChars) || 12000, 800);
+        const res = formatWorldInfoEntries(all, Number(settings.scanWorldInfoChars) || 50000, 2500);
         count = res.count;
         total = res.total;
         if (res.text) parts.push(`=== 世界书全部设定 ===\n${res.text}`);
@@ -925,7 +942,7 @@ async function judgeLatestTurnWithAI(isManual = false, endIndex = null) {
     const settings = getSettings();
     const ledger = getChatLedger();
     const end = endIndex === null ? chat.length - 1 : endIndex;
-    const batch = collectUnjudgedMessages(ledger, end, Number(settings.judgeMaxChars) || 8000);
+    const batch = collectUnjudgedMessages(ledger, end, Number(settings.judgeMaxChars) || 20000);
 
     if (batch.count === 0) {
         // 范围内全是被隐藏的楼层：视为已处理，避免反复空跑
@@ -1693,11 +1710,11 @@ function initUI() {
                     </div>
                     <div class="st-karma-row">
                         <label title="每回合判定时，附带给模型的世界书内容上限">每回合世界书字数上限</label>
-                        <input id="st-karma-wi-chars" type="number" min="500" max="20000" step="500" class="text_pole st-karma-input-num" value="${settings.maxWorldInfoChars}" />
+                        <input id="st-karma-wi-chars" type="number" min="500" max="100000" step="1000" class="text_pole st-karma-input-num" value="${settings.maxWorldInfoChars}" />
                     </div>
                     <div class="st-karma-row">
                         <label title="点「扫描世界书与前史」时，交给模型通读的世界书内容上限">开局扫描字数上限</label>
-                        <input id="st-karma-scan-chars" type="number" min="1000" max="60000" step="1000" class="text_pole st-karma-input-num" value="${settings.scanWorldInfoChars}" />
+                        <input id="st-karma-scan-chars" type="number" min="1000" max="300000" step="5000" class="text_pole st-karma-input-num" value="${settings.scanWorldInfoChars}" />
                     </div>
                     <div class="st-karma-row">
                         <label title="混合/后台模式下，每累计 N 次 AI 回复做一次判定，一次性读取上次判定之后的所有楼层">每几次 AI 回复判定一次</label>
@@ -1705,7 +1722,7 @@ function initUI() {
                     </div>
                     <div class="st-karma-row">
                         <label title="单次判定最多读取的剧情字数，超出时优先保留最新楼层">单次判定读取字数上限</label>
-                        <input id="st-karma-judge-chars" type="number" min="1000" max="60000" step="1000" class="text_pole st-karma-input-num" value="${settings.judgeMaxChars}" />
+                        <input id="st-karma-judge-chars" type="number" min="1000" max="200000" step="2000" class="text_pole st-karma-input-num" value="${settings.judgeMaxChars}" />
                     </div>
                     <div class="st-karma-row">
                         <small style="opacity:0.75; line-height:1.5;">被总结插件或手动隐藏（👻）的楼层会自动跳过，不参与判定。</small>
