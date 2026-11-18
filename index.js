@@ -265,11 +265,65 @@ function getKarmaTierInfo(score) {
  */
 let lastActivatedWorldInfo = [];
 
+function resolveMvuVar(varPath) {
+    if (!varPath) return undefined;
+    try {
+        if (typeof window !== 'undefined' && typeof window.getvar === 'function') {
+            const v = window.getvar(varPath);
+            if (v !== undefined) return v;
+        }
+    } catch (_) { /* ignore */ }
+
+    const ctx = getSTContext();
+    const roots = [
+        ctx?.chatMetadata?.variables,
+        ...(Array.isArray(ctx?.chat) ? ctx.chat.slice().reverse().map(m => m?.variables || m?.extra?.variables) : []),
+    ].filter(Boolean);
+
+    const parts = String(varPath).split('.');
+    for (const root of roots) {
+        let cur = root;
+        for (const p of parts) {
+            if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
+            else { cur = undefined; break; }
+        }
+        if (cur !== undefined) return cur;
+    }
+    return undefined;
+}
+
 function cleanWorldInfoText(raw) {
-    return String(raw || '')
-        .replace(/<%[\s\S]*?%>/g, '') // 剥离 MVU / EJS 模板脚本代码，节省字数预算并避免干扰模型
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+    const str = String(raw || '');
+    if (!str.includes('<%')) return str.trim();
+    // 优先执行 MVU / EJS 阶段条件分支（按当前聊天的实际进度阶段裁剪掉尚未发生的未来阶段）
+    try {
+        let code = 'let __out = "";\n';
+        let cursor = 0;
+        const re = /<%[_=-]?([\s\S]*?)[_-]?%>/g;
+        let m;
+        while ((m = re.exec(str)) !== null) {
+            const textSlice = str.slice(cursor, m.index);
+            if (textSlice) code += '__out += ' + JSON.stringify(textSlice) + ';\n';
+            const tag = m[0];
+            const inner = m[1];
+            if (tag.startsWith('<%=')) {
+                code += '__out += (' + inner + ');\n';
+            } else {
+                code += inner + '\n';
+            }
+            cursor = re.lastIndex;
+        }
+        const tail = str.slice(cursor);
+        if (tail) code += '__out += ' + JSON.stringify(tail) + ';\n';
+        code += 'return __out;';
+        const fn = new Function('getvar', code);
+        return fn(resolveMvuVar).replace(/\n{3,}/g, '\n\n').trim();
+    } catch (_) {
+        return str
+            .replace(/<%[\s\S]*?%>/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
 }
 
 function isTechnicalMetaEntry(title) {
@@ -379,6 +433,7 @@ async function buildTurnLoreContext() {
  */
 async function buildFullLoreContext() {
     const settings = getSettings();
+    const ctx = getSTContext();
     const parts = [buildCharacterLore()];
     let count = 0;
     let total = 0;
@@ -391,6 +446,20 @@ async function buildFullLoreContext() {
         if (res.text) parts.push(`=== 世界书全部设定 ===\n${res.text}`);
     }
 
+    // 附带当前聊天的开场白与最新消息，用于精确锚定“当前故事所处的时间线节点”
+    const chat = Array.isArray(ctx?.chat) ? ctx.chat.filter(m => m && !isHiddenMessage(m)) : [];
+    if (chat.length > 0) {
+        const sample = chat.length <= 3
+            ? chat
+            : [chat[0], ...chat.slice(-2)];
+        const chatSnippet = sample
+            .map((m, idx) => `[${idx === 0 ? '开场/初始时间锚点' : '近期剧情'}] ${m.name || (m.is_user ? '玩家' : '角色')}：${stripKarmaTags(m.mes).slice(0, 1200)}`)
+            .join('\n\n');
+        const stageVar = resolveMvuVar('stat_data.剧情.进度');
+        const stageLine = stageVar ? `当前变量进度阶段：${Array.isArray(stageVar) ? stageVar[0] : stageVar}\n` : '';
+        parts.push(`=== 当前聊天所处时间节点与现场（以此锚定时间线，严禁预支此时间点之后的未来事件！） ===\n${stageLine}${chatSnippet}`);
+    }
+
     return { text: parts.filter(Boolean).join('\n\n'), count, total };
 }
 
@@ -398,6 +467,9 @@ async function buildFullLoreContext() {
  * 因果记账核心原则（判定、开局扫描、正文内嵌标签共用）
  */
 const KARMA_CORE_RULES = `=== 因果审计与记账铁律（务必严格执行） ===
+0. 【时间线断代铁律（严禁预支未来因果）】：
+   - 必须先根据【当前聊天所处时间节点与现场】确定现在故事处于哪个时期（例如：是童年/少年求学时期，还是十三年后重逢时期，还是终局时期）。
+   - 只允许结算【截至当前时间节点已经发生】的过往行为！凡是在当前时间点之后才会发生的未来原著事件（例如：若当前尚在少年求学时期，则未来的灭门、移丹、失控血案、围剿、祠堂冲突等均尚未发生；若当前在十三年后初醒，则未来的终局祠堂冲突尚未发生），一律严禁提前计入因果账本！
 1. 【核心方法论：苦主视角倒查法】（拒绝顺着主角光环记账）：
    - 严禁顺着作者或叙事者的偏爱视角去夸大主角团的善、隐瞒主角团的恶！
    - 评估任何角色（尤其是主角、官配、被设定集美化的上位者）时，必须先找出所有因他而受损、受辱、受委屈的【苦主】（例如：被偏心冷落的亲生子女、被连累覆灭的家族、被擅闯宗祠/家门动手冒犯的苦主、被他拔剑打伤的本门师长、因他失控而惨死的亲友与无辜者）。
@@ -1255,15 +1327,17 @@ ${worldLore}
 ${buildRulesBlock()}
 
 === 输出要求（务必先输出 <think> 苦主对账单，再输出 JSON 数组） ===
-1. 在输出 JSON 前，必须先输出一个 <think>...</think> 块，按以下三步完成盘点：
-   - 【第一步：识别作品与反洗白还原】：指明当前设定所属作品（若为同人/衍生），列出被世界书作者带着 CP/主角滤镜删减、美化或一笔带过的原著争议事实（例如：主角团不请自来闯入苦主宗祠并在先人牌位前对苦主拔剑动武、越界护短、失控造成群死群伤或亲人惨死等）。
-   - 【第二步：苦主点名倒查】：逐一列出故事中受损、受辱、受委屈的苦主，写明是谁在何时亏欠、连累、冷落或冒犯了他们。
-   - 【第三步：剔除恋爱脑假功德】：把哼歌、苦等、暗恋、替心上人受罚等纯感情或受刑项从加分池中剔除。
-2. <think> 结束后，根据上面的盘点结果输出纯 JSON 数组（每个核心角色必须功过兼查，严禁出现全正分圣人）：
+1. 在输出 JSON 前，必须先输出一个 <think>...</think> 块，按以下四步完成盘点：
+   - 【第一步：时间线断代锚定】：根据开场白/当前剧情，写明“当前故事所处时间点”，明确哪些原著事件已经发生（可入账）、哪些属于尚未发生的未来事件（严禁提前入账！）。
+   - 【第二步：反洗白还原】：针对截至当前时间点【已发生】的过往，列出被世界书作者带着 CP/主角滤镜删减、美化或一笔带过的原著争议事实。
+   - 【第三步：苦主点名倒查】：逐一列出截至当前时间点已受损、受辱、受委屈的苦主，写明是谁亏欠、连累、冷落或冒犯了他们。
+   - 【第四步：剔除恋爱脑假功德】：把哼歌、苦等、暗恋、替心上人受罚等纯感情或受刑项从加分池中剔除。
+2. <think> 结束后，根据上面的盘点结果输出纯 JSON 数组（只含已发生事件，每个核心角色必须功过兼查）：
 <think>
-1. 反洗白还原：...
-2. 苦主倒查：...
-3. 剔除项：...
+1. 时间线锚定：...
+2. 反洗白还原（仅限已发生）：...
+3. 苦主倒查：...
+4. 剔除项：...
 </think>
 [
   {
