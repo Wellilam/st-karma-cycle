@@ -495,17 +495,20 @@ const KARMA_CORE_RULES = `=== 因果审计与记账铁律（全题材通用，�
    - 世界书与角色卡常带有强烈的作者偏心或 CP 滤镜，会刻意省略、柔化主角团的不当行为（如只写“在祠堂心疼落泪”却隐去“擅闯他人祠堂并对苦主拔剑相向”，或将严重失控伤人一笔带过）。
    - 若识别出当前设定源自已知作品，你必须【直接调用对该作品原著全貌的客观记忆】，把被世界书作者隐去、淡化或洗白的争议事件、越界失礼、双标护短与血债全部还原出来入账，绝不可只当传声筒！
    - 若为原创设定，则按常理与人情伦理逆向推演：一段看似“深情/温润/潇洒”的描写背后，谁在替他负重？谁被他冒犯？谁被他忽视？把这些隐性受害全部抓出来记账。
-3. 【去恋爱脑滤镜 & 罪罚分明】：
+3. 【去恋爱脑/洗白滤镜 & 严禁“空头名分加分”與“偏心洗白”】：
    - 谈恋爱、深情苦等、哼歌陪伴、替心上人受罚吃苦属于私人情感，一律不计正分！
+   - 【始乱终弃/空头名分禁加分】：若某人迫于师命、契约或职责收留了孤儿/徒弟/晚辈（仅给了一个挂名身份、名分或住所），随后却长期遗弃、冷暴力、不教不养——该空头名分是其失职的起点，严禁拆出一条“给予名分/庇护/起点”来加正分（+）！受人之托却弃置不管，必须直记「违背托付」与「长期遗弃」的负分（−）。
+   - 【厚此薄彼/双标偏心从重扣分】：若师长/父母/伴侣对本该负责的苦主（如受托大徒弟、亲生子、原配）长期抛弃冷落（如丢下十余年不闻不问），同一时期却有精力对旁人（如外捡的关门弟子、新欢、偏宠对象）悉心抚养照料——这种鲜明双标证明其完全有能力尽责却独对苦主薄情，必须对苦主从重扣分（−35 ~ −50）；且对偏宠对象的私人照料至多记 +5 ~ +10，绝不可记高分！
    - 出于私情包庇重犯、抗拒公审、打伤同门师长，属【徇私废公、欺师伤长】（记 −25 ~ −40）；加分（+）条目的描述里严禁夹带任何伤人、违纪或受罚内容。
    - 凡涉及大规模杀伤、修习高危禁术/炼制凶器失控误杀无辜、或因自身失控导致至亲替自己挡刀惨死，无论是否“被逼无奈、遭人算计、并非本意”或“前世已死过一次”，均须作为重大负面血债单独重记（−30 ~ −50）。
-4. 【一事一条、正负拆开、双向对账】：
-   - 同一件事若对甲是私恩、对乙是伤害/冒犯，必须按不同对象（target）拆成多条独立记录；严禁把同一角色的功与过合并，也严禁让某个核心角色只记好话不记亏欠。单条分值 ±5 ~ ±50（私人恩怨单条不超过 ±25）。`;
+4. 【一事一条、正负拆开、量刑按伤害时长与深度定级】：
+   - 同一件事若对甲是私恩、对乙是伤害/冒犯，必须按不同对象（target）拆成多条独立记录；严禁把同一角色的功与过合并，也严禁让某个核心角色只记好话不记亏欠。
+   - 单条分值 ±5 ~ ±50：长期遗弃幼童/徒弟（十年以上）、背弃临终重托、长期精神打压或冷暴力、严重背叛、重大血债，一律按重罪量刑（−35 ~ −50），绝不可轻判！`;
 
 function buildRulesBlock(compact = false) {
     const custom = String(getSettings().customRules || '').trim();
     const core = compact
-        ? '采用【苦主视角倒查法】并调用原著/常理记忆穿透设定洗白：挨个站在受损、受辱、被连累的苦主立场上倒查主角与配角的亏欠、越界、双标护短（如擅闯苦主祠堂动武、为护私情打伤师长、惹祸连累家族、长辈偏心失职、失控误杀无辜或连累至亲替死），逐条记负面（−）；谈恋爱/苦等/受罚不加分，加分描述严禁夹带伤人违纪内容；功与过分条并写明对象（target）。'
+        ? '采用【苦主视角倒查法】穿透洗白：挨个站在受损、被弃、被冷落的苦主立场倒查亏欠（−）；迫于师命/职责给个空头名分却长期遗弃不教养的，严禁给“名分/庇护”加正分；对苦主抛弃冷落十余年却对旁人/新徒弟悉心照料的，属极端双标薄情，对苦主从重扣分（−35~−50），对偏宠对象至多 +5~+10；谈恋爱/苦等/受罚不加分；功与过分条并写明对象（target）。'
         : KARMA_CORE_RULES;
     return custom
         ? `${core}\n\n=== 用户自定义判定准则（优先级最高，与上文冲突时以此为准） ===\n${custom}`
@@ -662,8 +665,7 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
         charRec.seeds = charRec.seeds.slice(-40);
     }
 
-    const tierInfo = getKarmaTierInfo(charRec.totalKarma);
-    charRec.statusTags = [tierInfo.title];
+    recalculateCharacterKarma(charRec);
 
     ledger.historyLogs.unshift({
         id: seed.id,
@@ -684,9 +686,44 @@ function recordKarmaEvent(charName, delta, deed, options = {}) {
 }
 
 /**
+ * 按“同对象内部可相抵，跨对象绝不拿对乙之善抵对甲之恶”重算角色当前因果主分值与阶位
+ */
+function recalculateCharacterKarma(charRec) {
+    if (!charRec) return 0;
+    const seeds = Array.isArray(charRec.seeds) ? charRec.seeds : [];
+    const byTarget = new Map();
+    for (const s of seeds) {
+        if (s.settled) continue;
+        const rem = s.remainingDelta !== undefined ? s.remainingDelta : s.delta;
+        if (!rem) continue;
+        const key = (s.target || '').trim() || `__general_${s.id}`;
+        byTarget.set(key, (byTarget.get(key) || 0) + rem);
+    }
+
+    let unpaidEvil = 0;
+    let unpaidGood = 0;
+    for (const net of byTarget.values()) {
+        if (net < 0) unpaidEvil += Math.abs(net);
+        else if (net > 0) unpaidGood += net;
+    }
+
+    // 只要存在尚未结清的对他人亏欠（且恶业不低于善功，或恶业已达 15 点以上），主显示分值即直接反映其背负的恶业，绝不用对旁人的好来冲淡罪责
+    if (unpaidEvil >= 15 || unpaidEvil >= unpaidGood) {
+        charRec.totalKarma = unpaidEvil > 0 ? -unpaidEvil : unpaidGood;
+    } else {
+        charRec.totalKarma = unpaidGood - unpaidEvil;
+    }
+
+    const tierInfo = getKarmaTierInfo(charRec.totalKarma);
+    charRec.statusTags = [tierInfo.title];
+    return charRec.totalKarma;
+}
+
+/**
  * 计算角色的延时检定概率
  */
 function calculateCharacterRoulette(charRec, currentTurn) {
+    recalculateCharacterKarma(charRec);
     const settings = getSettings();
     const seeds = Array.isArray(charRec.seeds) ? charRec.seeds : [];
 
@@ -726,15 +763,52 @@ function calculateCharacterRoulette(charRec, currentTurn) {
     const turnsSinceLastSettle = currentTurn - (charRec.lastSettlementTurn ?? -999);
     const inCooldown = turnsSinceLastSettle < (settings.cooldownTurns ?? 4);
 
-    // 善恶相抵：只看已成熟部分的净值，相反方向的记录作为“抵消项”
-    const net = matureGood - matureEvil;
-    const dominantType = net < 0 ? 'retribution' : 'blessing';
-    const dominantValue = Math.abs(net);
-    const dominantSeeds = net < 0 ? matureEvilSeeds : matureGoodSeeds;
-    const offsetSeeds = net < 0 ? matureGoodSeeds : matureEvilSeeds;
-    const offsetValue = Math.min(matureGood, matureEvil);
+    // 核心铁律：【对甲之恶，绝不可用对乙之善抵消！】
+    // 只有针对【同一对象】的善与恶才能在内部相抵（如对同一人先救命 +30、后反目 -25 → 对该人净 +5）；
+    // 对不同对象的亏欠（如对大徒弟 -40、对师尊 -20）与对第三人的恩惠（如对小徒弟 +10）各自独立入池，绝不跨人抵罪！
+    const byTarget = new Map();
+    for (const s of [...matureEvilSeeds, ...matureGoodSeeds]) {
+        const key = (s.target || '').trim() || `__general_${s.id}`;
+        if (!byTarget.has(key)) byTarget.set(key, { good: 0, evil: 0, goodSeeds: [], evilSeeds: [] });
+        const grp = byTarget.get(key);
+        const rem = s.remainingDelta !== undefined ? s.remainingDelta : s.delta;
+        if (rem > 0) {
+            grp.good += rem;
+            grp.goodSeeds.push(s);
+        } else if (rem < 0) {
+            grp.evil += Math.abs(rem);
+            grp.evilSeeds.push(s);
+        }
+    }
 
+    let netEvilPool = 0;
+    let netGoodPool = 0;
+    const effectiveEvilSeeds = [];
+    const effectiveGoodSeeds = [];
+    const sameTargetOffsetSeeds = [];
+    let offsetValue = 0;
+
+    for (const grp of byTarget.values()) {
+        const grpNet = grp.good - grp.evil;
+        const grpOffset = Math.min(grp.good, grp.evil);
+        offsetValue += grpOffset;
+        if (grpNet < 0) {
+            netEvilPool += Math.abs(grpNet);
+            effectiveEvilSeeds.push(...grp.evilSeeds);
+            if (grp.goodSeeds.length > 0) sameTargetOffsetSeeds.push(...grp.goodSeeds);
+        } else if (grpNet > 0) {
+            netGoodPool += grpNet;
+            effectiveGoodSeeds.push(...grp.goodSeeds);
+            if (grp.evilSeeds.length > 0) sameTargetOffsetSeeds.push(...grp.evilSeeds);
+        }
+    }
+
+    // 若角色背负待结算恶业（尤其已达阈值，或恶业不低于善功），优先检定恶报，防止“靠宠旁人逃避对苦主的报应”
     const threshold = Number(settings.triggerThreshold ?? 25);
+    const dominantType = (netEvilPool >= threshold || netEvilPool >= netGoodPool) ? 'retribution' : 'blessing';
+    const dominantValue = dominantType === 'retribution' ? netEvilPool : netGoodPool;
+    const dominantSeeds = dominantType === 'retribution' ? effectiveEvilSeeds : effectiveGoodSeeds;
+    const offsetSeeds = sameTargetOffsetSeeds;
     let triggerChance = 0;
 
     if (!inCooldown && dominantValue >= threshold) {
