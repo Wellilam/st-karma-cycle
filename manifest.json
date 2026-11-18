@@ -1,12 +1,12 @@
 {
-    "display_name": "☯ 天道因果循环 (Karma Cycle)",
+    "display_name": "因果回响 (Karma Echo)",
     "loading_order": 55,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
     "author": "Wellilam",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "homePage": "https://github.com/Wellilam/st-karma-cycle",
-    "description": "识别正文与世界书内容，记录角色善恶因果账本，通过“不是不报时候未到”的天道轮盘延时概率清算机制，在后续剧情中自动触发因果报应或福报机缘。"
+    "description": "识别正文与世界书内容，追踪角色善恶与因果伏笔，通过延时概率检定机制在后续剧情中自然触发报应反噬或正向回馈。"
 }

@@ -1,104 +1,132 @@
 /* ==========================================================================
-   ☯ 天道因果循环 (Karma Cycle) - SillyTavern Extension Styles
+   因果回响 (Karma Echo) — 新中式极简 × 现代半透明毛玻璃 UI
+   Palette: 墨石蓝底 (Ink Slate) · 天青玉 (Celadon) · 绛朱砂 (Cinnabar) · 暮山紫 (Misty Indigo)
    ========================================================================== */
 
 :root {
-    --karma-bg-dark: rgba(18, 19, 26, 0.96);
-    --karma-bg-card: rgba(30, 32, 44, 0.88);
-    --karma-bg-card-hover: rgba(40, 43, 58, 0.95);
-    --karma-border: rgba(212, 175, 55, 0.32);
-    --karma-border-bright: rgba(235, 198, 82, 0.68);
-    --karma-gold: #e2b857;
-    --karma-gold-soft: #bfa054;
-    --karma-good: #4ade80;
-    --karma-good-bg: rgba(74, 222, 128, 0.14);
-    --karma-evil: #f87171;
-    --karma-evil-bg: rgba(248, 113, 113, 0.15);
-    --karma-roulette: #c084fc;
-    --karma-roulette-bg: rgba(192, 132, 252, 0.15);
-    --karma-text: #e5e7eb;
-    --karma-text-muted: #9ca3af;
+    --ke-glass-bg: rgba(20, 24, 34, 0.80);
+    --ke-glass-surface: rgba(255, 255, 255, 0.045);
+    --ke-glass-surface-hover: rgba(255, 255, 255, 0.075);
+    --ke-glass-input: rgba(12, 15, 22, 0.52);
+    --ke-border-subtle: rgba(255, 255, 255, 0.09);
+    --ke-border-strong: rgba(255, 255, 255, 0.17);
+    --ke-accent: #7dd3c8;          /* 新中式天青 / 青白玉 */
+    --ke-accent-soft: rgba(125, 211, 200, 0.14);
+    --ke-accent-border: rgba(125, 211, 200, 0.34);
+    --ke-good: #5eead4;            /* 竹青 / 玉色 */
+    --ke-good-bg: rgba(94, 234, 212, 0.11);
+    --ke-evil: #fb7185;            /* 绛朱砂 / 绯红 */
+    --ke-evil-bg: rgba(251, 113, 133, 0.12);
+    --ke-echo: #a5b4fc;            /* 暮山紫 / 雾靛 */
+    --ke-echo-bg: rgba(165, 180, 252, 0.13);
+    --ke-text-main: #f1f5f9;
+    --ke-text-secondary: #cbd5e1;
+    --ke-text-muted: #8b9bb0;
 }
 
-/* 悬浮球按钮 */
+/* 右下角毛玻璃悬浮球 */
 #st-karma-fab {
     position: fixed;
-    right: 18px;
-    bottom: 85px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #2e3244, #12131a);
-    border: 1.5px solid var(--karma-border-bright);
-    color: var(--karma-gold);
+    right: 20px;
+    bottom: 86px;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: rgba(22, 27, 38, 0.72);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid var(--ke-border-strong);
+    color: var(--ke-accent);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
     cursor: pointer;
     z-index: 9998;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px rgba(226, 184, 87, 0.25);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
     user-select: none;
 }
 
 #st-karma-fab:hover {
-    transform: scale(1.08);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), 0 0 18px rgba(226, 184, 87, 0.45);
-    border-color: var(--karma-gold);
+    transform: translateY(-2px);
+    background: rgba(30, 37, 52, 0.86);
+    border-color: var(--ke-accent-border);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(125, 211, 200, 0.18);
+}
+
+#st-karma-fab svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    transition: transform 0.35s ease;
+}
+
+#st-karma-fab:hover svg {
+    transform: rotate(45deg);
 }
 
 #st-karma-fab.karma-fab-pending {
-    animation: karma-pulse-glow 2s infinite;
-    border-color: var(--karma-roulette);
+    border-color: rgba(165, 180, 252, 0.65);
+    color: var(--ke-echo);
+    animation: ke-breathe 2.6s ease-in-out infinite;
 }
 
 #st-karma-fab .karma-fab-badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    min-width: 18px;
-    height: 18px;
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
     padding: 0 4px;
-    border-radius: 9px;
-    background: #ef4444;
+    border-radius: 99px;
+    background: var(--ke-evil);
     color: #fff;
     font-size: 10px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 8px rgba(251, 113, 133, 0.5);
 }
 
-@keyframes karma-pulse-glow {
+@keyframes ke-breathe {
     0%, 100% {
-        box-shadow: 0 0 8px rgba(192, 132, 252, 0.4), 0 0 16px rgba(248, 113, 113, 0.3);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(165, 180, 252, 0.25);
     }
     50% {
-        box-shadow: 0 0 18px rgba(192, 132, 252, 0.85), 0 0 28px rgba(248, 113, 113, 0.65);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 18px 2px rgba(165, 180, 252, 0.38);
     }
 }
 
-/* 设置抽屉内部样式 */
+/* 酒馆扩展设置面板内部 */
 .st-karma-settings-wrap {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 6px 2px;
+    padding: 8px 2px;
     font-size: 13px;
 }
 
 .st-karma-section-title {
+    font-size: 12.5px;
     font-weight: 600;
-    color: var(--karma-gold);
-    border-bottom: 1px solid var(--karma-border);
-    padding-bottom: 4px;
-    margin-top: 6px;
-    margin-bottom: 4px;
+    letter-spacing: 0.03em;
+    color: var(--ke-text-secondary);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    margin-bottom: 2px;
+}
+
+/* 新中式竖向青玉细线点缀 */
+.st-karma-section-title::before {
+    content: "";
+    display: inline-block;
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--ke-accent), rgba(125, 211, 200, 0.25));
 }
 
 .st-karma-row {
@@ -113,75 +141,86 @@
     flex: 1;
     min-width: 140px;
     margin: 0;
+    color: var(--ke-text-secondary);
 }
 
 .st-karma-input-num {
-    width: 75px !important;
+    width: 72px !important;
     text-align: center;
 }
 
 .st-karma-btn-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
+    gap: 7px;
 }
 
+/* 现代毛玻璃胶囊按钮 */
 .st-karma-btn {
-    background: rgba(226, 184, 87, 0.12);
-    border: 1px solid var(--karma-border);
-    color: var(--karma-text);
-    border-radius: 6px;
-    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid var(--ke-border-subtle);
+    color: var(--ke-text-secondary);
+    border-radius: 8px;
+    padding: 6px 12px;
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.18s ease;
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    line-height: 1.2;
 }
 
 .st-karma-btn:hover {
-    background: rgba(226, 184, 87, 0.25);
-    border-color: var(--karma-gold);
+    background: rgba(255, 255, 255, 0.11);
+    border-color: var(--ke-border-strong);
     color: #fff;
 }
 
 .st-karma-btn.karma-btn-primary {
-    background: linear-gradient(135deg, rgba(212, 175, 55, 0.28), rgba(147, 51, 234, 0.28));
-    border-color: var(--karma-border-bright);
-    color: var(--karma-gold);
-    font-weight: 600;
+    background: var(--ke-accent-soft);
+    border-color: var(--ke-accent-border);
+    color: var(--ke-accent);
+}
+
+.st-karma-btn.karma-btn-primary:hover {
+    background: rgba(125, 211, 200, 0.24);
+    border-color: var(--ke-accent);
+    color: #fff;
 }
 
 .st-karma-btn.karma-btn-danger {
-    background: rgba(248, 113, 113, 0.14);
-    border-color: rgba(248, 113, 113, 0.4);
-    color: #fca5a5;
+    background: var(--ke-evil-bg);
+    border-color: rgba(251, 113, 133, 0.28);
+    color: #fda4af;
 }
 
 .st-karma-btn.karma-btn-danger:hover {
-    background: rgba(248, 113, 113, 0.28);
-    border-color: #f87171;
+    background: rgba(251, 113, 133, 0.22);
+    border-color: var(--ke-evil);
+    color: #fff;
 }
 
 .st-karma-btn.karma-btn-good {
-    background: rgba(74, 222, 128, 0.14);
-    border-color: rgba(74, 222, 128, 0.4);
-    color: #86efac;
+    background: var(--ke-good-bg);
+    border-color: rgba(94, 234, 212, 0.28);
+    color: #99f6e4;
 }
 
 .st-karma-btn.karma-btn-good:hover {
-    background: rgba(74, 222, 128, 0.28);
-    border-color: #4ade80;
+    background: rgba(94, 234, 212, 0.22);
+    border-color: var(--ke-good);
+    color: #fff;
 }
 
-/* 因果生死簿主面板 Modal */
+/* 主面板背景遮罩 */
 #st-karma-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.68);
-    backdrop-filter: blur(4px);
+    background: rgba(8, 11, 18, 0.52);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 9999;
     display: none;
     align-items: center;
@@ -193,82 +232,146 @@
     display: flex;
 }
 
+/* 现代半透明毛玻璃仪表盘容器 */
 .st-karma-modal {
-    width: min(860px, 96vw);
-    max-height: 88vh;
-    background: var(--karma-bg-dark);
-    border: 1px solid var(--karma-border-bright);
-    border-radius: 12px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(212, 175, 55, 0.12);
+    width: min(880px, 95vw);
+    max-height: 86vh;
+    background: var(--ke-glass-bg);
+    backdrop-filter: blur(26px) saturate(150%);
+    -webkit-backdrop-filter: blur(26px) saturate(150%);
+    border: 1px solid var(--ke-border-strong);
+    border-radius: 18px;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: var(--karma-text);
+    color: var(--ke-text-main);
 }
 
+/* 顶部栏：留白 + 新中式温润层次 */
 .st-karma-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 18px;
-    background: linear-gradient(90deg, rgba(212, 175, 55, 0.15), rgba(30, 32, 44, 0.4));
-    border-bottom: 1px solid var(--karma-border);
+    padding: 16px 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+    border-bottom: 1px solid var(--ke-border-subtle);
+}
+
+.st-karma-modal-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.st-karma-brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--ke-accent-soft);
+    border: 1px solid var(--ke-accent-border);
+    color: var(--ke-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .st-karma-modal-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     font-size: 16px;
-    font-weight: 700;
-    color: var(--karma-gold);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ke-text-main);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.st-karma-modal-title-en {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ke-text-muted);
 }
 
 .st-karma-modal-subtitle {
-    font-size: 11px;
-    color: var(--karma-text-muted);
-    font-weight: 400;
+    font-size: 11.5px;
+    color: var(--ke-text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.02em;
 }
 
 .st-karma-modal-body {
-    padding: 14px 18px;
+    padding: 18px 22px 22px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 
-/* 顶部天道状态横幅 */
+/* 仪表盘状态概览卡片 */
 .st-karma-status-banner {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 13px;
+    background: var(--ke-glass-surface);
+    border: 1px solid var(--ke-border-subtle);
 }
 
+.st-karma-stat-pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.st-karma-stat-pill {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--ke-text-secondary);
+}
+
+.st-karma-stat-pill strong {
+    color: var(--ke-accent);
+    font-weight: 600;
+}
+
+/* 待触发回响通知横幅 */
 .st-karma-pending-directive {
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: linear-gradient(90deg, rgba(192, 132, 252, 0.16), rgba(248, 113, 113, 0.12));
-    border: 1px solid rgba(192, 132, 252, 0.5);
+    padding: 12px 16px;
+    border-radius: 13px;
+    background: linear-gradient(90deg, rgba(165, 180, 252, 0.13), rgba(125, 211, 200, 0.07));
+    border: 1px solid rgba(165, 180, 252, 0.35);
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.55;
 }
 
-.st-karma-pending-directive strong {
-    color: #e9d5ff;
+/* 空状态占位 */
+.st-karma-empty-state {
+    padding: 34px 20px;
+    text-align: center;
+    color: var(--ke-text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.7;
 }
 
-/* 角色因果卡片网格 */
+/* 角色卡片网格 */
 .st-karma-char-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(365px, 1fr));
+    gap: 14px;
 }
 
 @media (max-width: 600px) {
@@ -278,28 +381,28 @@
 }
 
 .st-karma-char-card {
-    background: var(--karma-bg-card);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 12px 14px;
+    background: var(--ke-glass-surface);
+    border: 1px solid var(--ke-border-subtle);
+    border-radius: 14px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    transition: border-color 0.2s ease;
+    gap: 11px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .st-karma-char-card:hover {
-    border-color: var(--karma-border);
+    background: var(--ke-glass-surface-hover);
+    border-color: var(--ke-border-strong);
 }
 
 .st-karma-char-card.karma-card-evil-alert {
-    border-color: rgba(248, 113, 113, 0.55);
-    box-shadow: inset 0 0 18px rgba(248, 113, 113, 0.06);
+    border-color: rgba(251, 113, 133, 0.42);
 }
 
 .st-karma-char-card.karma-card-good-alert {
-    border-color: rgba(74, 222, 128, 0.55);
-    box-shadow: inset 0 0 18px rgba(74, 222, 128, 0.06);
+    border-color: rgba(94, 234, 212, 0.42);
 }
 
 .st-karma-char-header {
@@ -310,64 +413,65 @@
 }
 
 .st-karma-char-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--ke-text-main);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .st-karma-tag {
     font-size: 11px;
-    padding: 2px 7px;
+    padding: 2px 8px;
     border-radius: 99px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: 0.02em;
 }
 
 .st-karma-tag.tag-good {
-    background: var(--karma-good-bg);
-    color: var(--karma-good);
-    border: 1px solid rgba(74, 222, 128, 0.35);
+    background: var(--ke-good-bg);
+    color: var(--ke-good);
+    border: 1px solid rgba(94, 234, 212, 0.28);
 }
 
 .st-karma-tag.tag-evil {
-    background: var(--karma-evil-bg);
-    color: var(--karma-evil);
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    background: var(--ke-evil-bg);
+    color: var(--ke-evil);
+    border: 1px solid rgba(251, 113, 133, 0.28);
 }
 
 .st-karma-tag.tag-neutral {
-    background: rgba(156, 163, 175, 0.15);
-    color: #d1d5db;
-    border: 1px solid rgba(156, 163, 175, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ke-text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .st-karma-tag.tag-roulette {
-    background: var(--karma-roulette-bg);
-    color: var(--karma-roulette);
-    border: 1px solid rgba(192, 132, 252, 0.35);
+    background: var(--ke-echo-bg);
+    color: var(--ke-echo);
+    border: 1px solid rgba(165, 180, 252, 0.32);
 }
 
-/* 善恶计量条 */
+/* 双向因果天平进度条 */
 .st-karma-meter-wrap {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
 }
 
 .st-karma-meter-labels {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    color: var(--karma-text-muted);
+    color: var(--ke-text-muted);
 }
 
 .st-karma-meter-track {
     position: relative;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 99px;
     overflow: hidden;
 }
 
@@ -376,8 +480,8 @@
     left: 50%;
     top: 0;
     bottom: 0;
-    width: 2px;
-    background: rgba(255, 255, 255, 0.4);
+    width: 1.5px;
+    background: rgba(255, 255, 255, 0.35);
     z-index: 2;
 }
 
@@ -386,9 +490,9 @@
     left: 50%;
     top: 0;
     bottom: 0;
-    background: linear-gradient(90deg, #22c55e, #4ade80);
-    border-radius: 0 4px 4px 0;
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, #2dd4bf, #5eead4);
+    border-radius: 0 99px 99px 0;
+    transition: width 0.35s ease;
 }
 
 .st-karma-meter-fill-evil {
@@ -396,29 +500,30 @@
     right: 50%;
     top: 0;
     bottom: 0;
-    background: linear-gradient(270deg, #ef4444, #f87171);
-    border-radius: 4px 0 0 4px;
-    transition: width 0.3s ease;
+    background: linear-gradient(270deg, #f43f5e, #fb7185);
+    border-radius: 99px 0 0 99px;
+    transition: width 0.35s ease;
 }
 
-/* 天道轮盘概率显示 */
+/* 概率检定状态条 */
 .st-karma-roulette-box {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.28);
-    border: 1px dashed rgba(212, 175, 55, 0.28);
+    padding: 7px 11px;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 11.5px;
+    color: var(--ke-text-secondary);
 }
 
-/* 未结因果列表 */
+/* 伏笔事件列表 */
 .st-karma-seeds-list {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    max-height: 130px;
+    max-height: 135px;
     overflow-y: auto;
     padding-right: 2px;
 }
@@ -427,75 +532,31 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 6px;
-    padding: 5px 8px;
-    border-radius: 5px;
+    gap: 8px;
+    padding: 6px 9px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.03);
     font-size: 11.5px;
-    line-height: 1.35;
+    line-height: 1.4;
 }
 
 .st-karma-seed-item.seed-settled {
-    opacity: 0.48;
+    opacity: 0.42;
     text-decoration: line-through;
 }
 
 .st-karma-seed-delta {
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .st-karma-seed-delta.delta-good {
-    color: var(--karma-good);
+    color: var(--ke-good);
 }
 
 .st-karma-seed-delta.delta-evil {
-    color: var(--karma-evil);
-}
-
-/* 历史日志流 */
-.st-karma-log-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 180px;
-    overflow-y: auto;
-}
-
-.st-karma-log-entry {
-    font-size: 12px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.03);
-    border-left: 3px solid var(--karma-gold);
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.st-karma-log-entry.log-retribution {
-    border-left-color: var(--karma-roulette);
-    background: rgba(192, 132, 252, 0.08);
-}
-
-/* 聊天消息底部的天道因果小横幅 */
-.st-karma-chat-badge {
-    margin-top: 8px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: rgba(18, 19, 26, 0.78);
-    border: 1px solid var(--karma-border);
-    font-size: 12px;
-    color: var(--karma-text);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-}
-
-.st-karma-chat-badge-title {
-    color: var(--karma-gold);
-    font-weight: 600;
+    color: var(--ke-evil);
 }
 
 /* 手动添加表单 */
@@ -503,18 +564,78 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--ke-glass-surface);
+    border: 1px solid var(--ke-border-subtle);
 }
 
 .st-karma-manual-form input,
 .st-karma-manual-form select {
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: #fff;
-    padding: 5px 8px;
-    border-radius: 5px;
+    background: var(--ke-glass-input);
+    border: 1px solid var(--ke-border-subtle);
+    color: var(--ke-text-main);
+    padding: 6px 10px;
+    border-radius: 8px;
     font-size: 12px;
+    outline: none;
+    transition: border-color 0.18s ease;
+}
+
+.st-karma-manual-form input:focus,
+.st-karma-manual-form select:focus {
+    border-color: var(--ke-accent-border);
+}
+
+.st-karma-manual-form input::placeholder {
+    color: rgba(148, 163, 184, 0.6);
+}
+
+/* 历史动态流 */
+.st-karma-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 170px;
+    overflow-y: auto;
+}
+
+.st-karma-log-entry {
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 2.5px solid var(--ke-accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.st-karma-log-entry.log-retribution {
+    border-left-color: var(--ke-echo);
+    background: rgba(165, 180, 252, 0.07);
+}
+
+/* 聊天气泡底部的轻量回响条 */
+.st-karma-chat-badge {
+    margin-top: 8px;
+    padding: 6px 11px;
+    border-radius: 9px;
+    background: rgba(20, 24, 34, 0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--ke-border-subtle);
+    font-size: 11.5px;
+    color: var(--ke-text-secondary);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+}
+
+.st-karma-chat-badge-title {
+    color: var(--ke-accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
 }
