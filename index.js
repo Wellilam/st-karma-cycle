@@ -56,7 +56,8 @@ const DEFAULT_SETTINGS = {
 
     // 判定模式: 'hybrid' | 'inline' | 'quiet'
     judgeMode: 'hybrid',
-    judgeInterval: 1,
+    judgeInterval: 1,       // 每 N 次 AI 回复做一次后台判定
+    judgeMaxChars: 8000,    // 单次判定最多读取的剧情字数（超出时优先保留最新楼层）
     includeWorldInfo: true,
     maxWorldInfoChars: 3000,   // 每回合判定时附带的世界书字数上限
     scanWorldInfoChars: 12000, // 开局扫描时交给模型阅读的世界书字数上限
@@ -170,6 +171,13 @@ function getChatLedger() {
     if (!ledger.characters) ledger.characters = {};
     if (!Array.isArray(ledger.pendingSettlements)) ledger.pendingSettlements = [];
     if (!Array.isArray(ledger.historyLogs)) ledger.historyLogs = [];
+    if (typeof ledger.repliesSinceJudge !== 'number') ledger.repliesSinceJudge = 0;
+    if (typeof ledger.lastJudgedChatIndex !== 'number') {
+        // 新建账本 / 旧版本升级：已有楼层视为“已看过”，从之后的新楼层开始判定，避免把整段旧聊天重算一遍
+        ledger.lastJudgedChatIndex = (typeof ledger.lastJudgedMessageId === 'number' && ledger.lastJudgedMessageId >= 0)
+            ? ledger.lastJudgedMessageId
+            : (Array.isArray(ctx.chat) ? ctx.chat.length - 1 : -1);
+    }
     if (typeof ledger.turnCounter !== 'number') {
         ledger.turnCounter = Array.isArray(ctx.chat) ? Math.max(0, ctx.chat.length) : 0;
     }
@@ -843,7 +851,7 @@ async function runLLMPrompt(promptText) {
 /**
  * 后台静默分析最新一轮剧情
  */
-async function judgeLatestTurnWithAI(isManual = false) {
+async function judgeLatestTurnWithAI(isManual = false, endIndex = null) {
     const ctx = getSTContext();
     const chat = ctx.chat || [];
     if (chat.length === 0) {
@@ -853,26 +861,40 @@ async function judgeLatestTurnWithAI(isManual = false) {
         return [];
     }
 
-    const worldLore = await buildTurnLoreContext();
-    const recentMessages = chat.slice(-3).map(m => `${m.name || (m.is_user ? '玩家' : '角色')}: ${m.mes}`).join('\n\n---\n\n');
-
+    const settings = getSettings();
     const ledger = getChatLedger();
+    const end = endIndex === null ? chat.length - 1 : endIndex;
+    const batch = collectUnjudgedMessages(ledger, end, Number(settings.judgeMaxChars) || 8000);
+
+    if (batch.count === 0) {
+        // 范围内全是被隐藏的楼层：视为已处理，避免反复空跑
+        ledger.lastJudgedChatIndex = batch.end;
+        ledger.repliesSinceJudge = 0;
+        if (isManual && typeof toastr !== 'undefined') {
+            toastr.info('待判定的楼层都已被隐藏（总结插件/手动隐藏），已跳过。', '因果回响');
+        }
+        return [];
+    }
+
+    const worldLore = await buildTurnLoreContext();
+    const recentMessages = batch.text;
+    const rangeNote = `第 ${batch.from} ~ ${batch.end} 楼，共 ${batch.count} 条${batch.skippedHidden ? `，已跳过 ${batch.skippedHidden} 条隐藏楼层` : ''}`;
     const existingChars = Object.keys(ledger.characters).join('、') || '暂无记录';
 
-    const judgePrompt = `请结合【角色与世界书设定】以及【最新剧情内容】，客观分析最新一轮剧情中是否有角色埋下了显著的正向善因或负面恶因。
+    const judgePrompt = `请结合【角色与世界书设定】以及【待判定剧情】，客观分析这段剧情中是否有角色埋下了显著的正向善因或负面恶因。
 
 ${worldLore ? `${worldLore}\n\n` : ''}=== 已知在册角色 ===
 ${existingChars}
 
-=== 最新剧情内容 ===
+=== 待判定剧情（${rangeNote}） ===
 ${recentMessages}
 
 === 评估准则 ===
 1. 依据故事所在世界观的规则、契约、人物关系伦理与普世价值进行评估：
    - 正向分（+5 到 +50）：危急相助、信守承诺、保护他人、坦诚担当、遵守关键契约或底线等。
    - 负面分（-5 到 -50）：欺瞒背叛、暗中算计、伤害无辜、转嫁灾祸、违背誓言或世界观禁忌等。
-2. 仅针对【最新一轮剧情】中新发生的行为计分，不重复统计旧事件。
-3. 若最新剧情只是日常互动、无明显因果倾向，请直接返回空数组 []。
+2. 只针对上面【待判定剧情】中新发生的行为计分，同一件事只记一次；之前已结算过的旧事不要重复统计。
+3. 若这段剧情只是日常互动、无明显因果倾向，请直接返回空数组 []。
 4. 仅输出纯 JSON 数组，格式如下：
 [
   {
@@ -886,7 +908,7 @@ ${recentMessages}
 
     try {
         if (isManual && typeof toastr !== 'undefined') {
-            toastr.info('正在分析最新一轮剧情的因果伏笔……', '因果回响');
+            toastr.info(`正在分析${rangeNote}……`, '因果回响');
         }
         const rawReply = await runLLMPrompt(judgePrompt);
         const items = tryParseKarmaJson(rawReply);
@@ -905,11 +927,15 @@ ${recentMessages}
             }
         }
 
+        // 判定成功才推进进度；失败的话这些楼层留到下次再判
+        ledger.lastJudgedChatIndex = batch.end;
+        ledger.repliesSinceJudge = 0;
+
         if (isManual && typeof toastr !== 'undefined') {
             if (recorded.length > 0) {
                 toastr.success(`已记录 ${recorded.length} 条新的因果动态。`, '因果回响');
             } else {
-                toastr.info('本回合暂无显著的善恶因果变动。', '因果回响');
+                toastr.info('这段剧情暂无显著的善恶因果变动。', '因果回响');
             }
         }
         return recorded;
@@ -1027,6 +1053,49 @@ function renderMessageKarmaBadge(messageId, recordedSeeds, triggeredSettlements)
 }
 
 /**
+ * 楼层是否被隐藏：总结插件 / 手动隐藏（👻）都会把楼层标记为 is_system，
+ * 酒馆自己构建上下文时也是按这个标记排除的。
+ */
+function isHiddenMessage(m) {
+    return !m || m.is_system === true;
+}
+
+function stripKarmaTags(text) {
+    return String(text || '').replace(/<karma>[\s\S]*?<\/karma>/gi, '').trim();
+}
+
+/**
+ * 收集“上次判定之后”到 endIndex 之间的未判定楼层（跳过隐藏楼层）
+ * 超出字数预算时优先保留最新的楼层
+ */
+function collectUnjudgedMessages(ledger, endIndex, maxChars) {
+    const chat = getSTContext().chat || [];
+    const end = Math.min(endIndex, chat.length - 1);
+    let start = (typeof ledger.lastJudgedChatIndex === 'number' ? ledger.lastJudgedChatIndex : -1) + 1;
+    if (start > end) start = Math.max(0, end); // 没有新楼层（例如手动判定）：至少看最新一层
+
+    const picked = [];
+    let used = 0;
+    let skippedHidden = 0;
+    let from = end;
+
+    for (let i = end; i >= start; i--) {
+        const m = chat[i];
+        if (isHiddenMessage(m)) {
+            skippedHidden++;
+            continue;
+        }
+        const line = `#${i} ${m.name || (m.is_user ? '玩家' : '角色')}：${stripKarmaTags(m.mes)}`;
+        if (picked.length > 0 && used + line.length > maxChars) break;
+        picked.unshift(line);
+        used += line.length;
+        from = i;
+    }
+
+    return { text: picked.join('\n\n---\n\n'), count: picked.length, skippedHidden, from, end };
+}
+
+/**
  * 收到 AI 消息时的钩子
  */
 async function onMessageReceived(messageId) {
@@ -1037,12 +1106,13 @@ async function onMessageReceived(messageId) {
     const chat = ctx.chat || [];
     const msgIndex = typeof messageId === 'number' ? messageId : chat.length - 1;
     const messageObj = chat[msgIndex];
-    if (!messageObj || messageObj.is_user) return;
+    if (!messageObj || messageObj.is_user || isHiddenMessage(messageObj)) return;
 
     const ledger = getChatLedger();
     if (ledger.lastJudgedMessageId === msgIndex) return;
     ledger.lastJudgedMessageId = msgIndex;
     ledger.turnCounter = (ledger.turnCounter || 0) + 1;
+    ledger.repliesSinceJudge = (ledger.repliesSinceJudge || 0) + 1;
 
     if (Array.isArray(ledger.pendingSettlements) && ledger.pendingSettlements.length > 0) {
         finalizePendingSettlements();
@@ -1051,6 +1121,7 @@ async function onMessageReceived(messageId) {
     let recordedSeeds = [];
 
     if (settings.judgeMode === 'inline' || settings.judgeMode === 'hybrid') {
+        const hadTag = /<karma>[\s\S]*?<\/karma>/i.test(messageObj.mes || '');
         recordedSeeds = parseAndStripInlineKarmaTags(messageObj);
         if (settings.stripInlineTag) {
             const mesTextEl = document.querySelector(`.mes[mesid="${msgIndex}"] .mes_text`);
@@ -1060,14 +1131,17 @@ async function onMessageReceived(messageId) {
                     .replace(/<karma>[\s\S]*?<\/karma>/gi, '');
             }
         }
+        // 主模型自己附带了标签（哪怕是空的 []），说明这一轮已经判过了
+        if (hadTag || settings.judgeMode === 'inline') {
+            ledger.lastJudgedChatIndex = msgIndex;
+            ledger.repliesSinceJudge = 0;
+        }
     }
 
-    const shouldRunQuiet =
-        settings.judgeMode === 'quiet' ||
-        (settings.judgeMode === 'hybrid' && recordedSeeds.length === 0);
-
-    if (shouldRunQuiet && ledger.turnCounter % Math.max(1, Number(settings.judgeInterval || 1)) === 0) {
-        const quietSeeds = await judgeLatestTurnWithAI(false);
+    // 后台判定：每 N 次 AI 回复一次，一次性读完上次判定之后的所有未隐藏楼层
+    const interval = Math.max(1, Number(settings.judgeInterval) || 1);
+    if (settings.judgeMode !== 'inline' && ledger.repliesSinceJudge >= interval) {
+        const quietSeeds = await judgeLatestTurnWithAI(false, msgIndex);
         recordedSeeds.push(...quietSeeds);
     }
 
@@ -1311,10 +1385,11 @@ function renderKarmaModalContent() {
                 <div class="ke-stat"><span class="ke-stat-label">潜伏</span><span class="ke-stat-val">${settings.latentTurns}<span class="ke-stat-unit">回合</span></span></div>
                 <div class="ke-stat"><span class="ke-stat-label">阈值</span><span class="ke-stat-val">±${settings.triggerThreshold}</span></div>
                 <div class="ke-stat"><span class="ke-stat-label">判定</span><span class="ke-stat-val">${modeLabel}</span></div>
+                <div class="ke-stat" title="距离下次后台判定还差几次 AI 回复"><span class="ke-stat-label">待判</span><span class="ke-stat-val">${settings.judgeMode === 'inline' ? '—' : `${ledger.repliesSinceJudge || 0}<span class="ke-stat-unit">/ ${Math.max(1, Number(settings.judgeInterval) || 1)}</span>`}</span></div>
             </div>
             <div class="st-karma-btn-bar">
                 <button id="st-karma-btn-scan-lore" class="st-karma-btn karma-btn-primary">扫描世界书与前史</button>
-                <button id="st-karma-btn-judge-now" class="st-karma-btn">判定本回合</button>
+                <button id="st-karma-btn-judge-now" class="st-karma-btn" title="立即判定上次判定之后的所有楼层（跳过隐藏楼层）">立即判定</button>
                 <button id="st-karma-btn-roll-now" class="st-karma-btn">执行检定</button>
                 <button id="st-karma-btn-reset-chat" class="st-karma-btn karma-btn-danger">重置</button>
             </div>
@@ -1527,8 +1602,15 @@ function initUI() {
                         <input id="st-karma-scan-chars" type="number" min="1000" max="60000" step="1000" class="text_pole st-karma-input-num" value="${settings.scanWorldInfoChars}" />
                     </div>
                     <div class="st-karma-row">
-                        <label>后台静默判定间隔 (回合)</label>
-                        <input id="st-karma-judge-interval" type="number" min="1" max="10" class="text_pole st-karma-input-num" value="${settings.judgeInterval}" />
+                        <label title="混合/后台模式下，每累计 N 次 AI 回复做一次判定，一次性读取上次判定之后的所有楼层">每几次 AI 回复判定一次</label>
+                        <input id="st-karma-judge-interval" type="number" min="1" max="50" class="text_pole st-karma-input-num" value="${settings.judgeInterval}" />
+                    </div>
+                    <div class="st-karma-row">
+                        <label title="单次判定最多读取的剧情字数，超出时优先保留最新楼层">单次判定读取字数上限</label>
+                        <input id="st-karma-judge-chars" type="number" min="1000" max="60000" step="1000" class="text_pole st-karma-input-num" value="${settings.judgeMaxChars}" />
+                    </div>
+                    <div class="st-karma-row">
+                        <small style="opacity:0.75; line-height:1.5;">被总结插件或手动隐藏（👻）的楼层会自动跳过，不参与判定。</small>
                     </div>
 
                     <div class="st-karma-section-title">延时检定与触发参数</div>
@@ -1654,6 +1736,7 @@ function bindSettingsEvents() {
     bindVal('st-karma-wi-chars', 'maxWorldInfoChars', true);
     bindVal('st-karma-scan-chars', 'scanWorldInfoChars', true);
     bindVal('st-karma-judge-interval', 'judgeInterval', true);
+    bindVal('st-karma-judge-chars', 'judgeMaxChars', true);
     bindVal('st-karma-latent-turns', 'latentTurns', true);
     bindVal('st-karma-threshold', 'triggerThreshold', true);
     bindVal('st-karma-base-chance', 'baseTriggerChance', true);
