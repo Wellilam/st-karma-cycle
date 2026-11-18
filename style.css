@@ -223,6 +223,14 @@
 }
 
 /* ---------------- 遮罩与主面板 ---------------- */
+#st-karma-modal-backdrop,
+.st-karma-modal,
+.st-karma-modal *,
+.st-karma-modal *::before,
+.st-karma-modal *::after {
+    box-sizing: border-box;
+}
+
 #st-karma-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -618,12 +626,20 @@
 /* ---------------- 角色卡：竖排名签 ---------------- */
 .st-karma-char-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
     gap: 14px;
 }
 
 @media (max-width: 640px) {
-    #st-karma-modal-backdrop {
+    #st-karma-modal-backdrop,
+.st-karma-modal,
+.st-karma-modal *,
+.st-karma-modal *::before,
+.st-karma-modal *::after {
+    box-sizing: border-box;
+}
+
+#st-karma-modal-backdrop {
         padding: 8px;
     }
 
@@ -1376,4 +1392,150 @@
 .st-karma-modal .ke-rules-box textarea::placeholder {
     color: var(--ke-paper-mute);
     opacity: 0.75;
+}
+
+/* ---------------- 移动端响应式布局 (<= 640px) ---------------- */
+@media (max-width: 640px) {
+    #st-karma-modal-backdrop {
+        padding: 8px;
+    }
+
+    .st-karma-modal {
+        width: 100%;
+        max-height: 92vh;
+        max-height: 92dvh;
+    }
+
+    .st-karma-modal-header {
+        padding: 14px 16px 12px;
+        gap: 10px;
+    }
+
+    .st-karma-modal-brand {
+        gap: 11px;
+    }
+
+    .ke-brand-seal {
+        width: 38px;
+        height: 38px;
+        font-size: 13px;
+        padding: 4px;
+    }
+
+    .st-karma-modal-title {
+        font-size: 17px;
+        letter-spacing: 0.16em;
+    }
+
+    .st-karma-modal-subtitle {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        margin-top: 4px;
+    }
+
+    .ke-vertical-note {
+        display: none;
+    }
+
+    .st-karma-modal-body {
+        padding: 14px 14px 20px;
+        gap: 14px;
+    }
+
+    .st-karma-status-banner {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .ke-stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        width: 100%;
+    }
+
+    .ke-stat {
+        padding: 0 4px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .ke-stat-label {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+    }
+
+    .ke-stat-val {
+        font-size: 15px;
+    }
+
+    .st-karma-status-banner .st-karma-btn-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        width: 100%;
+    }
+
+    .st-karma-status-banner .st-karma-btn {
+        justify-content: center;
+        padding: 7px 8px;
+        font-size: 12px;
+    }
+
+    .st-karma-char-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .st-karma-char-card {
+        grid-template-columns: 36px 1fr;
+    }
+
+    .ke-card-name {
+        font-size: 14px;
+        letter-spacing: 0.22em;
+        padding: 14px 0;
+    }
+
+    .ke-card-main {
+        padding: 12px 12px 10px;
+        gap: 10px;
+    }
+
+    .ke-card-score {
+        font-size: 22px;
+    }
+
+    .ke-card-actions .st-karma-btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .st-karma-manual-form {
+        display: grid;
+        grid-template-columns: 1fr 90px;
+        gap: 10px 12px;
+        padding: 12px 14px;
+    }
+
+    .st-karma-modal .st-karma-manual-form input[type] {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    #st-karma-manual-deed {
+        grid-column: 1 / -1;
+    }
+
+    #st-karma-manual-add-btn {
+        grid-column: 1 / -1;
+        justify-content: center;
+        padding: 8px;
+    }
+
+    .ke-log {
+        grid-template-columns: 18px 28px 1fr auto;
+        font-size: 11.5px;
+        gap: 6px;
+    }
 }
