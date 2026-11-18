@@ -1,4 +1,4 @@
-﻿# 因果回响 (Karma Echo) — SillyTavern 扩展插件
+# 因果回响 (Karma Echo) — SillyTavern 扩展插件
 
 > **“凡有所为，皆有回响 · 延时因果与剧情回旋镖追踪”**
 
