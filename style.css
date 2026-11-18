@@ -1,0 +1,520 @@
+/* ==========================================================================
+   ☯ 天道因果循环 (Karma Cycle) - SillyTavern Extension Styles
+   ========================================================================== */
+
+:root {
+    --karma-bg-dark: rgba(18, 19, 26, 0.96);
+    --karma-bg-card: rgba(30, 32, 44, 0.88);
+    --karma-bg-card-hover: rgba(40, 43, 58, 0.95);
+    --karma-border: rgba(212, 175, 55, 0.32);
+    --karma-border-bright: rgba(235, 198, 82, 0.68);
+    --karma-gold: #e2b857;
+    --karma-gold-soft: #bfa054;
+    --karma-good: #4ade80;
+    --karma-good-bg: rgba(74, 222, 128, 0.14);
+    --karma-evil: #f87171;
+    --karma-evil-bg: rgba(248, 113, 113, 0.15);
+    --karma-roulette: #c084fc;
+    --karma-roulette-bg: rgba(192, 132, 252, 0.15);
+    --karma-text: #e5e7eb;
+    --karma-text-muted: #9ca3af;
+}
+
+/* 悬浮球按钮 */
+#st-karma-fab {
+    position: fixed;
+    right: 18px;
+    bottom: 85px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #2e3244, #12131a);
+    border: 1.5px solid var(--karma-border-bright);
+    color: var(--karma-gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 9998;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px rgba(226, 184, 87, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    user-select: none;
+}
+
+#st-karma-fab:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), 0 0 18px rgba(226, 184, 87, 0.45);
+    border-color: var(--karma-gold);
+}
+
+#st-karma-fab.karma-fab-pending {
+    animation: karma-pulse-glow 2s infinite;
+    border-color: var(--karma-roulette);
+}
+
+#st-karma-fab .karma-fab-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes karma-pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(192, 132, 252, 0.4), 0 0 16px rgba(248, 113, 113, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 18px rgba(192, 132, 252, 0.85), 0 0 28px rgba(248, 113, 113, 0.65);
+    }
+}
+
+/* 设置抽屉内部样式 */
+.st-karma-settings-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 6px 2px;
+    font-size: 13px;
+}
+
+.st-karma-section-title {
+    font-weight: 600;
+    color: var(--karma-gold);
+    border-bottom: 1px solid var(--karma-border);
+    padding-bottom: 4px;
+    margin-top: 6px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.st-karma-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.st-karma-row label {
+    flex: 1;
+    min-width: 140px;
+    margin: 0;
+}
+
+.st-karma-input-num {
+    width: 75px !important;
+    text-align: center;
+}
+
+.st-karma-btn-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.st-karma-btn {
+    background: rgba(226, 184, 87, 0.12);
+    border: 1px solid var(--karma-border);
+    color: var(--karma-text);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.st-karma-btn:hover {
+    background: rgba(226, 184, 87, 0.25);
+    border-color: var(--karma-gold);
+    color: #fff;
+}
+
+.st-karma-btn.karma-btn-primary {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.28), rgba(147, 51, 234, 0.28));
+    border-color: var(--karma-border-bright);
+    color: var(--karma-gold);
+    font-weight: 600;
+}
+
+.st-karma-btn.karma-btn-danger {
+    background: rgba(248, 113, 113, 0.14);
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #fca5a5;
+}
+
+.st-karma-btn.karma-btn-danger:hover {
+    background: rgba(248, 113, 113, 0.28);
+    border-color: #f87171;
+}
+
+.st-karma-btn.karma-btn-good {
+    background: rgba(74, 222, 128, 0.14);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: #86efac;
+}
+
+.st-karma-btn.karma-btn-good:hover {
+    background: rgba(74, 222, 128, 0.28);
+    border-color: #4ade80;
+}
+
+/* 因果生死簿主面板 Modal */
+#st-karma-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+#st-karma-modal-backdrop.karma-open {
+    display: flex;
+}
+
+.st-karma-modal {
+    width: min(860px, 96vw);
+    max-height: 88vh;
+    background: var(--karma-bg-dark);
+    border: 1px solid var(--karma-border-bright);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(212, 175, 55, 0.12);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--karma-text);
+}
+
+.st-karma-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.15), rgba(30, 32, 44, 0.4));
+    border-bottom: 1px solid var(--karma-border);
+}
+
+.st-karma-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--karma-gold);
+}
+
+.st-karma-modal-subtitle {
+    font-size: 11px;
+    color: var(--karma-text-muted);
+    font-weight: 400;
+}
+
+.st-karma-modal-body {
+    padding: 14px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* 顶部天道状态横幅 */
+.st-karma-status-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.st-karma-pending-directive {
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, rgba(192, 132, 252, 0.16), rgba(248, 113, 113, 0.12));
+    border: 1px solid rgba(192, 132, 252, 0.5);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.st-karma-pending-directive strong {
+    color: #e9d5ff;
+}
+
+/* 角色因果卡片网格 */
+.st-karma-char-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 12px;
+}
+
+@media (max-width: 600px) {
+    .st-karma-char-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.st-karma-char-card {
+    background: var(--karma-bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    transition: border-color 0.2s ease;
+}
+
+.st-karma-char-card:hover {
+    border-color: var(--karma-border);
+}
+
+.st-karma-char-card.karma-card-evil-alert {
+    border-color: rgba(248, 113, 113, 0.55);
+    box-shadow: inset 0 0 18px rgba(248, 113, 113, 0.06);
+}
+
+.st-karma-char-card.karma-card-good-alert {
+    border-color: rgba(74, 222, 128, 0.55);
+    box-shadow: inset 0 0 18px rgba(74, 222, 128, 0.06);
+}
+
+.st-karma-char-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.st-karma-char-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.st-karma-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    font-weight: 600;
+}
+
+.st-karma-tag.tag-good {
+    background: var(--karma-good-bg);
+    color: var(--karma-good);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+}
+
+.st-karma-tag.tag-evil {
+    background: var(--karma-evil-bg);
+    color: var(--karma-evil);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.st-karma-tag.tag-neutral {
+    background: rgba(156, 163, 175, 0.15);
+    color: #d1d5db;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+.st-karma-tag.tag-roulette {
+    background: var(--karma-roulette-bg);
+    color: var(--karma-roulette);
+    border: 1px solid rgba(192, 132, 252, 0.35);
+}
+
+/* 善恶计量条 */
+.st-karma-meter-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.st-karma-meter-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--karma-text-muted);
+}
+
+.st-karma-meter-track {
+    position: relative;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.st-karma-meter-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.4);
+    z-index: 2;
+}
+
+.st-karma-meter-fill-good {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    border-radius: 0 4px 4px 0;
+    transition: width 0.3s ease;
+}
+
+.st-karma-meter-fill-evil {
+    position: absolute;
+    right: 50%;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(270deg, #ef4444, #f87171);
+    border-radius: 4px 0 0 4px;
+    transition: width 0.3s ease;
+}
+
+/* 天道轮盘概率显示 */
+.st-karma-roulette-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px dashed rgba(212, 175, 55, 0.28);
+    font-size: 11.5px;
+}
+
+/* 未结因果列表 */
+.st-karma-seeds-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 130px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.st-karma-seed-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11.5px;
+    line-height: 1.35;
+}
+
+.st-karma-seed-item.seed-settled {
+    opacity: 0.48;
+    text-decoration: line-through;
+}
+
+.st-karma-seed-delta {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.st-karma-seed-delta.delta-good {
+    color: var(--karma-good);
+}
+
+.st-karma-seed-delta.delta-evil {
+    color: var(--karma-evil);
+}
+
+/* 历史日志流 */
+.st-karma-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.st-karma-log-entry {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--karma-gold);
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.st-karma-log-entry.log-retribution {
+    border-left-color: var(--karma-roulette);
+    background: rgba(192, 132, 252, 0.08);
+}
+
+/* 聊天消息底部的天道因果小横幅 */
+.st-karma-chat-badge {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(18, 19, 26, 0.78);
+    border: 1px solid var(--karma-border);
+    font-size: 12px;
+    color: var(--karma-text);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.st-karma-chat-badge-title {
+    color: var(--karma-gold);
+    font-weight: 600;
+}
+
+/* 手动添加表单 */
+.st-karma-manual-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.st-karma-manual-form input,
+.st-karma-manual-form select {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+}
