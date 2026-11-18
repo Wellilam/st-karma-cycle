@@ -1,104 +1,97 @@
 /* ==========================================================================
-   因果回响 (Karma Echo) — 新中式极简 × 现代半透明毛玻璃 UI
-   Palette: 墨石蓝底 (Ink Slate) · 天青玉 (Celadon) · 绛朱砂 (Cinnabar) · 暮山紫 (Misty Indigo)
+   因果回响 (Karma Echo) — 新中式 · 墨韵毛玻璃
+   宣纸墨色底 · 朱砂印章 · 青瓷 · 黛紫 · 宋体标题 · 竖排 · 窗棂角饰 · 远山水墨
    ========================================================================== */
 
 :root {
-    --ke-glass-bg: rgba(20, 24, 34, 0.80);
-    --ke-glass-surface: rgba(255, 255, 255, 0.045);
-    --ke-glass-surface-hover: rgba(255, 255, 255, 0.075);
-    --ke-glass-input: rgba(12, 15, 22, 0.52);
-    --ke-border-subtle: rgba(255, 255, 255, 0.09);
-    --ke-border-strong: rgba(255, 255, 255, 0.17);
-    --ke-accent: #7dd3c8;          /* 新中式天青 / 青白玉 */
-    --ke-accent-soft: rgba(125, 211, 200, 0.14);
-    --ke-accent-border: rgba(125, 211, 200, 0.34);
-    --ke-good: #5eead4;            /* 竹青 / 玉色 */
-    --ke-good-bg: rgba(94, 234, 212, 0.11);
-    --ke-evil: #fb7185;            /* 绛朱砂 / 绯红 */
-    --ke-evil-bg: rgba(251, 113, 133, 0.12);
-    --ke-echo: #a5b4fc;            /* 暮山紫 / 雾靛 */
-    --ke-echo-bg: rgba(165, 180, 252, 0.13);
-    --ke-text-main: #f1f5f9;
-    --ke-text-secondary: #cbd5e1;
-    --ke-text-muted: #8b9bb0;
+    --ke-serif: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "STSong", "SimSun", serif;
+    --ke-ink: #12161b;
+    --ke-paper: #ece4d3;
+    --ke-paper-dim: #bdb4a2;
+    --ke-paper-mute: #847d70;
+    --ke-line: rgba(236, 228, 211, 0.09);
+    --ke-line-strong: rgba(236, 228, 211, 0.18);
+    --ke-cinnabar: #c8463a;
+    --ke-cinnabar-light: #e2705f;
+    --ke-celadon: #9ccbb8;
+    --ke-indigo: #aab5dd;
+    --ke-gamboge: #d9a95a;
 }
 
-/* 右下角毛玻璃悬浮球 */
+/* ---------------- 悬浮印章按钮 ---------------- */
 #st-karma-fab {
     position: fixed;
     right: 20px;
     bottom: 86px;
     width: 42px;
     height: 42px;
-    border-radius: 13px;
-    background: rgba(22, 27, 38, 0.72);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid var(--ke-border-strong);
-    color: var(--ke-accent);
+    border-radius: 6px;
+    background: linear-gradient(145deg, #d04c3f, #9b3227);
+    color: #f5ecda;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 9998;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    transition: all 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform: rotate(-5deg);
+    box-shadow:
+        inset 0 0 0 3px #b43c30,
+        inset 0 0 0 4px rgba(245, 236, 218, 0.72),
+        0 8px 22px rgba(0, 0, 0, 0.42),
+        0 2px 10px rgba(200, 70, 58, 0.35);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease;
     user-select: none;
 }
 
 #st-karma-fab:hover {
-    transform: translateY(-2px);
-    background: rgba(30, 37, 52, 0.86);
-    border-color: var(--ke-accent-border);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(125, 211, 200, 0.18);
+    transform: rotate(0deg) translateY(-2px);
+    box-shadow:
+        inset 0 0 0 3px #b43c30,
+        inset 0 0 0 4px rgba(245, 236, 218, 0.85),
+        0 12px 28px rgba(0, 0, 0, 0.5),
+        0 4px 16px rgba(200, 70, 58, 0.5);
 }
 
-#st-karma-fab svg {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
-    transition: transform 0.35s ease;
-}
-
-#st-karma-fab:hover svg {
-    transform: rotate(45deg);
+#st-karma-fab .ke-fab-char {
+    font-family: var(--ke-serif);
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 #st-karma-fab.karma-fab-pending {
-    border-color: rgba(165, 180, 252, 0.65);
-    color: var(--ke-echo);
     animation: ke-breathe 2.6s ease-in-out infinite;
 }
 
 #st-karma-fab .karma-fab-badge {
     position: absolute;
-    top: -5px;
-    right: -5px;
+    top: -6px;
+    right: -6px;
     min-width: 17px;
     height: 17px;
     padding: 0 4px;
     border-radius: 99px;
-    background: var(--ke-evil);
-    color: #fff;
+    background: #f5ecda;
+    color: #9b3227;
+    border: 1px solid #9b3227;
     font-size: 10px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(251, 113, 133, 0.5);
+    transform: rotate(5deg);
 }
 
 @keyframes ke-breathe {
     0%, 100% {
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(165, 180, 252, 0.25);
+        box-shadow: inset 0 0 0 3px #b43c30, inset 0 0 0 4px rgba(245, 236, 218, 0.72), 0 8px 22px rgba(0, 0, 0, 0.42), 0 0 0 0 rgba(170, 181, 221, 0.0);
     }
     50% {
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 18px 2px rgba(165, 180, 252, 0.38);
+        box-shadow: inset 0 0 0 3px #b43c30, inset 0 0 0 4px rgba(245, 236, 218, 0.9), 0 8px 22px rgba(0, 0, 0, 0.42), 0 0 22px 4px rgba(170, 181, 221, 0.45);
     }
 }
 
-/* 酒馆扩展设置面板内部 */
+/* ---------------- 酒馆扩展抽屉（跟随酒馆主题色） ---------------- */
 .st-karma-settings-wrap {
     display: flex;
     flex-direction: column;
@@ -107,26 +100,25 @@
     font-size: 13px;
 }
 
-.st-karma-section-title {
-    font-size: 12.5px;
+.st-karma-settings-wrap .st-karma-section-title {
+    font-family: var(--ke-serif);
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.03em;
-    color: var(--ke-text-secondary);
+    letter-spacing: 0.15em;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 6px;
-    margin-bottom: 2px;
+    margin-top: 8px;
+    opacity: 0.9;
 }
 
-/* 新中式竖向青玉细线点缀 */
-.st-karma-section-title::before {
+.st-karma-settings-wrap .st-karma-section-title::before {
     content: "";
-    display: inline-block;
-    width: 3px;
-    height: 13px;
-    border-radius: 2px;
-    background: linear-gradient(180deg, var(--ke-accent), rgba(125, 211, 200, 0.25));
+    width: 6px;
+    height: 6px;
+    background: var(--ke-cinnabar);
+    transform: rotate(45deg);
+    flex-shrink: 0;
 }
 
 .st-karma-row {
@@ -141,7 +133,6 @@
     flex: 1;
     min-width: 140px;
     margin: 0;
-    color: var(--ke-text-secondary);
 }
 
 .st-karma-input-num {
@@ -152,18 +143,19 @@
 .st-karma-btn-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
+    gap: 8px;
 }
 
-/* 现代毛玻璃胶囊按钮 */
+/* ---------------- 按钮 ---------------- */
 .st-karma-btn {
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid var(--ke-border-subtle);
-    color: var(--ke-text-secondary);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 500;
+    font-family: var(--ke-serif);
+    background: transparent;
+    border: 1px solid rgba(128, 128, 128, 0.38);
+    color: inherit;
+    border-radius: 3px;
+    padding: 6px 13px;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
     cursor: pointer;
     transition: all 0.18s ease;
     display: inline-flex;
@@ -172,55 +164,70 @@
     line-height: 1.2;
 }
 
-.st-karma-btn:hover {
-    background: rgba(255, 255, 255, 0.11);
-    border-color: var(--ke-border-strong);
-    color: #fff;
-}
-
 .st-karma-btn.karma-btn-primary {
-    background: var(--ke-accent-soft);
-    border-color: var(--ke-accent-border);
-    color: var(--ke-accent);
+    color: var(--ke-cinnabar-light);
+    border-color: rgba(200, 70, 58, 0.55);
+    background: rgba(200, 70, 58, 0.08);
 }
 
 .st-karma-btn.karma-btn-primary:hover {
-    background: rgba(125, 211, 200, 0.24);
-    border-color: var(--ke-accent);
-    color: #fff;
+    background: rgba(200, 70, 58, 0.2);
+    border-color: var(--ke-cinnabar-light);
+    color: #f5ecda;
 }
 
-.st-karma-btn.karma-btn-danger {
-    background: var(--ke-evil-bg);
-    border-color: rgba(251, 113, 133, 0.28);
-    color: #fda4af;
+.st-karma-modal .st-karma-btn {
+    color: var(--ke-paper-dim);
+    border-color: var(--ke-line-strong);
 }
 
-.st-karma-btn.karma-btn-danger:hover {
-    background: rgba(251, 113, 133, 0.22);
-    border-color: var(--ke-evil);
-    color: #fff;
+.st-karma-modal .st-karma-btn:hover {
+    color: var(--ke-paper);
+    border-color: rgba(236, 228, 211, 0.38);
+    background: rgba(236, 228, 211, 0.05);
 }
 
-.st-karma-btn.karma-btn-good {
-    background: var(--ke-good-bg);
-    border-color: rgba(94, 234, 212, 0.28);
-    color: #99f6e4;
+.st-karma-modal .st-karma-btn.karma-btn-primary {
+    color: var(--ke-cinnabar-light);
+    border-color: rgba(200, 70, 58, 0.55);
+    background: rgba(200, 70, 58, 0.08);
 }
 
-.st-karma-btn.karma-btn-good:hover {
-    background: rgba(94, 234, 212, 0.22);
-    border-color: var(--ke-good);
-    color: #fff;
+.st-karma-modal .st-karma-btn.karma-btn-primary:hover {
+    color: #f5ecda;
+    background: rgba(200, 70, 58, 0.22);
+    border-color: var(--ke-cinnabar-light);
 }
 
-/* 主面板背景遮罩 */
+.st-karma-modal .st-karma-btn.karma-btn-danger {
+    color: #c98d83;
+    border-color: rgba(200, 70, 58, 0.28);
+}
+
+.st-karma-modal .st-karma-btn.karma-btn-danger:hover {
+    color: #f5ecda;
+    border-color: var(--ke-cinnabar);
+    background: rgba(200, 70, 58, 0.16);
+}
+
+.st-karma-modal .st-karma-btn.karma-btn-good {
+    color: var(--ke-celadon);
+    border-color: rgba(156, 203, 184, 0.32);
+}
+
+.st-karma-modal .st-karma-btn.karma-btn-good:hover {
+    color: #f5ecda;
+    border-color: var(--ke-celadon);
+    background: rgba(156, 203, 184, 0.14);
+}
+
+/* ---------------- 遮罩与主面板 ---------------- */
 #st-karma-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(8, 11, 18, 0.52);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(6, 8, 10, 0.62);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     z-index: 9999;
     display: none;
     align-items: center;
@@ -232,410 +239,914 @@
     display: flex;
 }
 
-/* 现代半透明毛玻璃仪表盘容器 */
 .st-karma-modal {
-    width: min(880px, 95vw);
-    max-height: 86vh;
-    background: var(--ke-glass-bg);
-    backdrop-filter: blur(26px) saturate(150%);
-    -webkit-backdrop-filter: blur(26px) saturate(150%);
-    border: 1px solid var(--ke-border-strong);
-    border-radius: 18px;
-    box-shadow:
-        0 24px 60px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    --ke-corner: rgba(217, 169, 90, 0.55);
+    position: relative;
+    isolation: isolate;
+    width: min(920px, 95vw);
+    max-height: 88vh;
+    background:
+        radial-gradient(120% 80% at 100% 0%, rgba(156, 203, 184, 0.07), transparent 60%),
+        radial-gradient(90% 70% at 0% 100%, rgba(200, 70, 58, 0.06), transparent 60%),
+        linear-gradient(180deg, rgba(25, 29, 35, 0.96), rgba(15, 18, 22, 0.97));
+    backdrop-filter: blur(24px) saturate(130%);
+    -webkit-backdrop-filter: blur(24px) saturate(130%);
+    border: 1px solid var(--ke-line-strong);
+    border-radius: 6px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(236, 228, 211, 0.06);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: var(--ke-text-main);
+    color: var(--ke-paper);
 }
 
-/* 顶部栏：留白 + 新中式温润层次 */
+/* 宣纸颗粒 */
+.st-karma-modal::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.93 0 0 0 0 0.89 0 0 0 0 0.83 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 窗棂角饰 */
+.st-karma-modal::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    pointer-events: none;
+    z-index: 3;
+    border: 1px solid rgba(236, 228, 211, 0.04);
+    background:
+        linear-gradient(var(--ke-corner), var(--ke-corner)) left top / 16px 1px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) left top / 1px 16px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) right top / 16px 1px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) right top / 1px 16px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) left bottom / 16px 1px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) left bottom / 1px 16px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) right bottom / 16px 1px no-repeat,
+        linear-gradient(var(--ke-corner), var(--ke-corner)) right bottom / 1px 16px no-repeat;
+}
+
+.st-karma-modal *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.st-karma-modal *::-webkit-scrollbar-thumb {
+    background: rgba(236, 228, 211, 0.12);
+    border-radius: 3px;
+}
+
+.st-karma-modal *::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ---------------- 页眉：印章 + 宋体 + 远山 ---------------- */
 .st-karma-modal-header {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 22px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
-    border-bottom: 1px solid var(--ke-border-subtle);
+    gap: 16px;
+    padding: 22px 26px 20px;
+    border-bottom: 1px solid var(--ke-line);
+    overflow: hidden;
+}
+
+.st-karma-modal-header .ke-ink-mountains {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 72%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%);
+    mask-image: linear-gradient(90deg, transparent, #000 35%);
 }
 
 .st-karma-modal-brand {
     display: flex;
     align-items: center;
-    gap: 12px;
-}
-
-.st-karma-brand-mark {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: var(--ke-accent-soft);
-    border: 1px solid var(--ke-accent-border);
-    color: var(--ke-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.st-karma-modal-title {
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--ke-text-main);
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-}
-
-.st-karma-modal-title-en {
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ke-text-muted);
-}
-
-.st-karma-modal-subtitle {
-    font-size: 11.5px;
-    color: var(--ke-text-muted);
-    margin-top: 2px;
-    letter-spacing: 0.02em;
-}
-
-.st-karma-modal-body {
-    padding: 18px 22px 22px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
     gap: 16px;
 }
 
-/* 仪表盘状态概览卡片 */
+.ke-brand-seal {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    place-items: center;
+    padding: 5px;
+    border-radius: 4px;
+    background: linear-gradient(145deg, #cc4a3d, #9a3226);
+    color: #f5ecda;
+    font-family: var(--ke-serif);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    transform: rotate(-4deg);
+    box-shadow:
+        inset 0 0 0 2px #b23b2f,
+        inset 0 0 0 3px rgba(245, 236, 218, 0.75),
+        0 6px 18px rgba(200, 70, 58, 0.28);
+}
+
+.st-karma-modal-title {
+    font-family: var(--ke-serif);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    color: var(--ke-paper);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.st-karma-modal-title-en {
+    font-family: inherit;
+    font-family: system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--ke-paper-mute);
+}
+
+.st-karma-modal-subtitle {
+    font-family: var(--ke-serif);
+    font-size: 12px;
+    letter-spacing: 0.32em;
+    color: var(--ke-paper-dim);
+    margin-top: 6px;
+}
+
+.ke-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ke-vertical-note {
+    writing-mode: vertical-rl;
+    font-family: var(--ke-serif);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    line-height: 1.7;
+    color: var(--ke-paper-mute);
+    border-left: 1px solid var(--ke-line-strong);
+    padding-left: 10px;
+    height: 58px;
+}
+
+.st-karma-modal .ke-close-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    font-family: system-ui, sans-serif;
+    letter-spacing: 0;
+}
+
+/* ---------------- 主体 ---------------- */
+.st-karma-modal-body {
+    position: relative;
+    z-index: 1;
+    padding: 20px 26px 28px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.ke-muted {
+    color: var(--ke-paper-mute);
+}
+
+/* 账簿抬头 */
 .st-karma-status-banner {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 13px;
-    background: var(--ke-glass-surface);
-    border: 1px solid var(--ke-border-subtle);
+    gap: 14px;
+    padding: 14px 18px;
+    border: 1px solid var(--ke-line);
+    border-radius: 4px;
+    background: rgba(236, 228, 211, 0.025);
 }
 
-.st-karma-stat-pills {
+.ke-stats {
     display: flex;
-    flex-wrap: wrap;
+    align-items: stretch;
+}
+
+.ke-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 20px;
+    border-left: 1px solid var(--ke-line);
+}
+
+.ke-stat:first-child {
+    padding-left: 2px;
+    border-left: none;
+}
+
+.ke-stat-label {
+    font-family: var(--ke-serif);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--ke-paper-mute);
+}
+
+.ke-stat-val {
+    font-family: var(--ke-serif);
+    font-size: 20px;
+    line-height: 1;
+    color: var(--ke-paper);
+    font-variant-numeric: tabular-nums;
+}
+
+.ke-stat-unit {
+    font-size: 11px;
+    color: var(--ke-paper-mute);
+    margin-left: 3px;
+}
+
+/* 印章 */
+.ke-seal {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    font-family: var(--ke-serif);
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    padding: 3px 5px 3px 7px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    line-height: 1.15;
+    white-space: nowrap;
+    transform: rotate(-6deg);
+    flex-shrink: 0;
 }
 
-.st-karma-stat-pill {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    color: var(--ke-text-secondary);
+.ke-seal-cinnabar {
+    color: var(--ke-cinnabar-light);
+    background: rgba(200, 70, 58, 0.09);
 }
 
-.st-karma-stat-pill strong {
-    color: var(--ke-accent);
+.ke-seal-celadon {
+    color: var(--ke-celadon);
+    background: rgba(156, 203, 184, 0.08);
+}
+
+.ke-seal-neutral {
+    color: var(--ke-paper-mute);
+}
+
+.ke-seal-indigo {
+    color: var(--ke-indigo);
+    background: rgba(170, 181, 221, 0.08);
+}
+
+.ke-seal-sm {
+    font-size: 11px;
+    letter-spacing: 0;
+    padding: 2px 4px;
+    transform: rotate(-4deg);
+}
+
+/* 待生效告示 */
+.st-karma-pending-directive {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 18px;
+    border: 1px solid rgba(170, 181, 221, 0.28);
+    border-left: 3px solid var(--ke-indigo);
+    border-radius: 4px;
+    background: linear-gradient(90deg, rgba(170, 181, 221, 0.10), rgba(170, 181, 221, 0.01));
+}
+
+.ke-notice-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ke-notice-title {
+    font-family: var(--ke-serif);
+    font-size: 13.5px;
+    letter-spacing: 0.18em;
+    color: var(--ke-indigo);
+}
+
+.ke-notice-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--ke-paper-dim);
+}
+
+.ke-notice-item b {
+    color: var(--ke-paper);
     font-weight: 600;
 }
 
-/* 待触发回响通知横幅 */
-.st-karma-pending-directive {
-    padding: 12px 16px;
-    border-radius: 13px;
-    background: linear-gradient(90deg, rgba(165, 180, 252, 0.13), rgba(125, 211, 200, 0.07));
-    border: 1px solid rgba(165, 180, 252, 0.35);
-    font-size: 12.5px;
-    line-height: 1.55;
+.ke-notice-deeds {
+    font-size: 11.5px;
+    color: var(--ke-paper-mute);
+    margin-top: 3px;
+    line-height: 1.6;
 }
 
-/* 空状态占位 */
+/* 空状态 */
 .st-karma-empty-state {
-    padding: 34px 20px;
+    position: relative;
+    overflow: hidden;
+    padding: 46px 20px 64px;
     text-align: center;
-    color: var(--ke-text-muted);
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px dashed rgba(255, 255, 255, 0.10);
-    border-radius: 14px;
-    font-size: 13px;
-    line-height: 1.7;
+    border: 1px solid var(--ke-line);
+    border-radius: 4px;
+    background: rgba(236, 228, 211, 0.018);
 }
 
-/* 角色卡片网格 */
+.st-karma-empty-state .ke-ink-mountains {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 70%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.ke-empty-title {
+    position: relative;
+    font-family: var(--ke-serif);
+    font-size: 17px;
+    letter-spacing: 0.4em;
+    color: var(--ke-paper);
+}
+
+.ke-empty-sub {
+    position: relative;
+    margin-top: 10px;
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: var(--ke-paper-dim);
+}
+
+.ke-empty-sub strong {
+    color: var(--ke-cinnabar-light);
+    font-weight: 600;
+}
+
+/* ---------------- 角色卡：竖排名签 ---------------- */
 .st-karma-char-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(365px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 14px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
     .st-karma-char-grid {
         grid-template-columns: 1fr;
+    }
+
+    .ke-vertical-note {
+        display: none;
+    }
+
+    .ke-stat {
+        padding: 0 12px;
     }
 }
 
 .st-karma-char-card {
-    background: var(--ke-glass-surface);
-    border: 1px solid var(--ke-border-subtle);
-    border-radius: 14px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 11px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transition: background 0.2s ease, border-color 0.2s ease;
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    border: 1px solid var(--ke-line);
+    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(236, 228, 211, 0.035), rgba(236, 228, 211, 0.012));
+    overflow: hidden;
+    transition: border-color 0.2s ease;
 }
 
 .st-karma-char-card:hover {
-    background: var(--ke-glass-surface-hover);
-    border-color: var(--ke-border-strong);
+    border-color: var(--ke-line-strong);
 }
 
 .st-karma-char-card.karma-card-evil-alert {
-    border-color: rgba(251, 113, 133, 0.42);
+    border-color: rgba(200, 70, 58, 0.42);
+}
+
+.st-karma-char-card.karma-card-evil-alert .ke-card-name {
+    box-shadow: inset 2px 0 0 var(--ke-cinnabar);
 }
 
 .st-karma-char-card.karma-card-good-alert {
-    border-color: rgba(94, 234, 212, 0.42);
+    border-color: rgba(156, 203, 184, 0.42);
 }
 
-.st-karma-char-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+.st-karma-char-card.karma-card-good-alert .ke-card-name {
+    box-shadow: inset 2px 0 0 var(--ke-celadon);
 }
 
-.st-karma-char-name {
-    font-size: 14.5px;
+.ke-card-name {
+    writing-mode: vertical-rl;
+    font-family: var(--ke-serif);
+    font-size: 16px;
     font-weight: 600;
-    color: var(--ke-text-main);
+    letter-spacing: 0.3em;
+    color: var(--ke-paper);
     display: flex;
     align-items: center;
+    justify-content: flex-start;
+    padding: 18px 0;
+    border-right: 1px solid var(--ke-line);
+    background: rgba(236, 228, 211, 0.03);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ke-card-main {
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
+}
+
+.ke-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ke-card-score {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--ke-serif);
+    font-size: 28px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.ke-card-score span {
+    font-family: system-ui, sans-serif;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    color: var(--ke-paper-mute);
+}
+
+.tone-good {
+    color: var(--ke-celadon);
+}
+
+.tone-evil {
+    color: var(--ke-cinnabar-light);
+}
+
+.tone-neutral {
+    color: var(--ke-paper-dim);
+}
+
+.ke-icon-btn {
+    background: none;
+    border: none;
+    color: var(--ke-paper-mute);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 2px;
+    opacity: 0.55;
+    align-self: flex-start;
+}
+
+.ke-icon-btn:hover {
+    opacity: 1;
+    color: var(--ke-paper);
+}
+
+/* 因果秤 */
+.ke-scale-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--ke-serif);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--ke-paper-mute);
+    margin-bottom: 6px;
+}
+
+.ke-scale-labels .ke-scale-name {
+    color: var(--ke-paper-dim);
+    letter-spacing: 0.3em;
+}
+
+.ke-scale-track {
+    position: relative;
+    height: 16px;
+}
+
+.ke-scale-track::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(200, 70, 58, 0.55), rgba(236, 228, 211, 0.22) 50%, rgba(156, 203, 184, 0.55));
+}
+
+.ke-tick {
+    position: absolute;
+    top: 50%;
+    width: 1px;
+    height: 6px;
+    transform: translate(-50%, -50%);
+    background: rgba(236, 228, 211, 0.25);
+}
+
+.ke-tick.mid {
+    height: 13px;
+    background: rgba(236, 228, 211, 0.5);
+}
+
+.ke-scale-fill {
+    position: absolute;
+    top: 50%;
+    height: 3px;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0.75;
+}
+
+.ke-scale-weight {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: currentColor;
+    box-shadow: 0 0 0 3px #161a20, 0 0 12px currentColor;
+}
+
+/* 回响检定 */
+.ke-check {
+    padding: 10px 12px;
+    border: 1px dashed rgba(236, 228, 211, 0.1);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.ke-check-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--ke-serif);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--ke-paper-dim);
+}
+
+.ke-check-val {
+    font-size: 18px;
+    letter-spacing: 0;
+    color: var(--ke-indigo);
+    font-variant-numeric: tabular-nums;
+}
+
+.ke-check-val.is-zero {
+    color: var(--ke-paper-mute);
+}
+
+.ke-check-track {
+    height: 2px;
+    margin: 8px 0 7px;
+    border-radius: 2px;
+    background: rgba(236, 228, 211, 0.08);
+    overflow: hidden;
+}
+
+.ke-check-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(170, 181, 221, 0.35), var(--ke-indigo));
+}
+
+.ke-check-note {
+    font-size: 11px;
+    color: var(--ke-paper-mute);
+    line-height: 1.5;
+}
+
+/* 伏笔时间线 */
+.ke-seeds {
+    display: flex;
+    flex-direction: column;
+    max-height: 156px;
+    overflow-y: auto;
+}
+
+.ke-seed {
+    position: relative;
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
     gap: 8px;
+    align-items: start;
+    padding: 5px 2px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--ke-paper-dim);
+}
+
+.ke-seed::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--ke-line-strong);
+}
+
+.ke-seed:first-child::before {
+    top: 12px;
+}
+
+.ke-seed:last-child::before {
+    bottom: calc(100% - 12px);
+}
+
+.ke-seed:only-child::before {
+    display: none;
+}
+
+.ke-seed-dot {
+    position: relative;
+    z-index: 1;
+    justify-self: center;
+    width: 7px;
+    height: 7px;
+    margin-top: 6px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    background: #161a20;
+}
+
+.ke-seed.good .ke-seed-dot {
+    color: var(--ke-celadon);
+}
+
+.ke-seed.evil .ke-seed-dot {
+    color: var(--ke-cinnabar-light);
+}
+
+.ke-seed.mature .ke-seed-dot {
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.ke-seed-turn {
+    font-family: var(--ke-serif);
+    font-size: 11px;
+    color: var(--ke-paper-mute);
+    margin-right: 6px;
+}
+
+.ke-seed-state {
+    margin-left: 6px;
+    font-size: 10.5px;
+    color: var(--ke-paper-mute);
+    white-space: nowrap;
+}
+
+.ke-seed.mature .ke-seed-state {
+    color: var(--ke-gamboge);
+}
+
+.ke-seed-delta {
+    font-family: var(--ke-serif);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ke-seed.good .ke-seed-delta {
+    color: var(--ke-celadon);
+}
+
+.ke-seed.evil .ke-seed-delta {
+    color: var(--ke-cinnabar-light);
+}
+
+.ke-seed.settled {
+    opacity: 0.42;
+}
+
+.ke-seed.settled .ke-seed-body {
+    text-decoration: line-through;
+    text-decoration-color: rgba(236, 228, 211, 0.35);
+}
+
+.ke-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 11px;
+    border-top: 1px solid var(--ke-line);
+}
+
+/* ---------------- 分节标题 ---------------- */
+.st-karma-modal .st-karma-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--ke-serif);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    color: var(--ke-paper);
+    margin: 6px 0 -4px;
+}
+
+.st-karma-modal .st-karma-section-title::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: var(--ke-cinnabar);
+    transform: rotate(45deg);
+    flex-shrink: 0;
+}
+
+.st-karma-modal .st-karma-section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--ke-line-strong), transparent);
+}
+
+/* ---------------- 手录表单：落笔横线 ---------------- */
+.st-karma-manual-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 16px;
+    padding: 14px 18px 16px;
+    border: 1px solid var(--ke-line);
+    border-radius: 4px;
+    background: rgba(236, 228, 211, 0.02);
+}
+
+.st-karma-modal .st-karma-manual-form input[type] {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ke-line-strong);
+    border-radius: 0;
+    padding: 6px 2px;
+    margin: 0;
+    color: var(--ke-paper);
+    font-size: 12.5px;
+    outline: none;
+    box-shadow: none;
+    transition: border-color 0.18s ease;
+}
+
+.st-karma-modal .st-karma-manual-form input[type]:focus {
+    border-bottom-color: var(--ke-cinnabar-light);
+}
+
+.st-karma-modal .st-karma-manual-form input::placeholder {
+    color: var(--ke-paper-mute);
+    opacity: 0.8;
+}
+
+/* ---------------- 因果流水 ---------------- */
+.st-karma-log-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 210px;
+    overflow-y: auto;
+}
+
+.ke-log {
+    display: grid;
+    grid-template-columns: 24px 34px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 4px;
+    border-bottom: 1px dashed rgba(236, 228, 211, 0.07);
+    font-size: 12.5px;
+    color: var(--ke-paper-dim);
+}
+
+.ke-log b {
+    color: var(--ke-paper);
+    font-weight: 600;
+}
+
+.ke-log-settle {
+    background: linear-gradient(90deg, rgba(170, 181, 221, 0.07), transparent 70%);
+}
+
+.ke-log-dot {
+    justify-self: center;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.ke-log-turn {
+    font-family: var(--ke-serif);
+    font-size: 11px;
+    color: var(--ke-paper-mute);
+}
+
+.ke-log-text {
+    min-width: 0;
+    line-height: 1.55;
+}
+
+.ke-log-amt {
+    font-family: var(--ke-serif);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ke-log-time {
+    font-size: 11px;
+    color: var(--ke-paper-mute);
+}
+
+.ke-empty-line {
+    padding: 14px 4px;
+    font-family: var(--ke-serif);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--ke-paper-mute);
+}
+
+/* ---------------- 聊天气泡下方的回响批注 ---------------- */
+.st-karma-chat-badge {
+    margin-top: 8px;
+    padding: 6px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    border-left: 2px solid var(--ke-cinnabar);
+    border-radius: 0 4px 4px 0;
+    background: rgba(18, 22, 27, 0.55);
+    font-size: 11.5px;
+    color: #d8d0bf;
+}
+
+.st-karma-chat-badge-title {
+    font-family: var(--ke-serif);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--ke-cinnabar-light);
 }
 
 .st-karma-tag {
     font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 99px;
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    padding: 1px 7px;
+    border-radius: 3px;
+    border: 1px solid transparent;
 }
 
 .st-karma-tag.tag-good {
-    background: var(--ke-good-bg);
-    color: var(--ke-good);
-    border: 1px solid rgba(94, 234, 212, 0.28);
+    color: var(--ke-celadon);
+    border-color: rgba(156, 203, 184, 0.3);
+    background: rgba(156, 203, 184, 0.07);
 }
 
 .st-karma-tag.tag-evil {
-    background: var(--ke-evil-bg);
-    color: var(--ke-evil);
-    border: 1px solid rgba(251, 113, 133, 0.28);
-}
-
-.st-karma-tag.tag-neutral {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--ke-text-secondary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--ke-cinnabar-light);
+    border-color: rgba(200, 70, 58, 0.3);
+    background: rgba(200, 70, 58, 0.07);
 }
 
 .st-karma-tag.tag-roulette {
-    background: var(--ke-echo-bg);
-    color: var(--ke-echo);
-    border: 1px solid rgba(165, 180, 252, 0.32);
-}
-
-/* 双向因果天平进度条 */
-.st-karma-meter-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.st-karma-meter-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--ke-text-muted);
-}
-
-.st-karma-meter-track {
-    position: relative;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.07);
-    border-radius: 99px;
-    overflow: hidden;
-}
-
-.st-karma-meter-center {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    bottom: 0;
-    width: 1.5px;
-    background: rgba(255, 255, 255, 0.35);
-    z-index: 2;
-}
-
-.st-karma-meter-fill-good {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, #2dd4bf, #5eead4);
-    border-radius: 0 99px 99px 0;
-    transition: width 0.35s ease;
-}
-
-.st-karma-meter-fill-evil {
-    position: absolute;
-    right: 50%;
-    top: 0;
-    bottom: 0;
-    background: linear-gradient(270deg, #f43f5e, #fb7185);
-    border-radius: 99px 0 0 99px;
-    transition: width 0.35s ease;
-}
-
-/* 概率检定状态条 */
-.st-karma-roulette-box {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 11px;
-    border-radius: 9px;
-    background: rgba(0, 0, 0, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 11.5px;
-    color: var(--ke-text-secondary);
-}
-
-/* 伏笔事件列表 */
-.st-karma-seeds-list {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    max-height: 135px;
-    overflow-y: auto;
-    padding-right: 2px;
-}
-
-.st-karma-seed-item {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 9px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    font-size: 11.5px;
-    line-height: 1.4;
-}
-
-.st-karma-seed-item.seed-settled {
-    opacity: 0.42;
-    text-decoration: line-through;
-}
-
-.st-karma-seed-delta {
-    font-weight: 600;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-
-.st-karma-seed-delta.delta-good {
-    color: var(--ke-good);
-}
-
-.st-karma-seed-delta.delta-evil {
-    color: var(--ke-evil);
-}
-
-/* 手动添加表单 */
-.st-karma-manual-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px;
-    border-radius: 12px;
-    background: var(--ke-glass-surface);
-    border: 1px solid var(--ke-border-subtle);
-}
-
-.st-karma-manual-form input,
-.st-karma-manual-form select {
-    background: var(--ke-glass-input);
-    border: 1px solid var(--ke-border-subtle);
-    color: var(--ke-text-main);
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    outline: none;
-    transition: border-color 0.18s ease;
-}
-
-.st-karma-manual-form input:focus,
-.st-karma-manual-form select:focus {
-    border-color: var(--ke-accent-border);
-}
-
-.st-karma-manual-form input::placeholder {
-    color: rgba(148, 163, 184, 0.6);
-}
-
-/* 历史动态流 */
-.st-karma-log-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 170px;
-    overflow-y: auto;
-}
-
-.st-karma-log-entry {
-    font-size: 12px;
-    padding: 7px 12px;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.03);
-    border-left: 2.5px solid var(--ke-accent);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-}
-
-.st-karma-log-entry.log-retribution {
-    border-left-color: var(--ke-echo);
-    background: rgba(165, 180, 252, 0.07);
-}
-
-/* 聊天气泡底部的轻量回响条 */
-.st-karma-chat-badge {
-    margin-top: 8px;
-    padding: 6px 11px;
-    border-radius: 9px;
-    background: rgba(20, 24, 34, 0.65);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--ke-border-subtle);
-    font-size: 11.5px;
-    color: var(--ke-text-secondary);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 7px;
-}
-
-.st-karma-chat-badge-title {
-    color: var(--ke-accent);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    color: var(--ke-indigo);
+    border-color: rgba(170, 181, 221, 0.32);
+    background: rgba(170, 181, 221, 0.07);
 }

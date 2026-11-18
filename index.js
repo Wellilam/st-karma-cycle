@@ -15,12 +15,38 @@ const MODULE_NAME = 'st_karma_cycle';
 const PROMPT_KEY_DIRECTOR = 'st_karma_cycle_director';
 const PROMPT_KEY_INLINE_RULE = 'st_karma_cycle_inline_rule';
 
-// 新中式双环回响极简图标 SVG
-const ECHO_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="10" cy="12" r="6.5"></circle>
-    <circle cx="14" cy="12" r="6.5" stroke-opacity="0.65"></circle>
-    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle>
+// 远山水墨（页眉与空状态装饰）
+const INK_MOUNTAIN_SVG = `<svg class="ke-ink-mountains" viewBox="0 0 600 120" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+        <linearGradient id="keInkFar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ece4d3" stop-opacity="0.10"/>
+            <stop offset="1" stop-color="#ece4d3" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="keInkNear" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ece4d3" stop-opacity="0.16"/>
+            <stop offset="1" stop-color="#ece4d3" stop-opacity="0"/>
+        </linearGradient>
+    </defs>
+    <circle cx="468" cy="34" r="15" fill="#c8463a" fill-opacity="0.22"/>
+    <path d="M0 120 L0 84 C40 76 70 56 104 60 C132 63 150 40 182 36 C214 32 236 66 268 68 C300 70 318 46 352 44 C390 42 410 74 446 76 C480 78 506 52 540 54 C566 56 584 70 600 68 L600 120 Z" fill="url(#keInkFar)"/>
+    <path d="M0 120 L0 100 C30 98 52 82 84 84 C120 86 140 68 176 66 C206 64 230 88 262 92 C296 96 322 76 356 74 C392 72 420 94 456 96 C494 98 520 82 556 84 C578 85 592 94 600 94 L600 120 Z" fill="url(#keInkNear)"/>
 </svg>`;
+
+// 朱砂印章（传统右起竖读：因果 / 回响）
+const BRAND_SEAL_HTML = `<div class="ke-brand-seal" aria-hidden="true"><span>回</span><span>因</span><span>响</span><span>果</span></div>`;
+
+function formatKarma(n) {
+    const v = Math.round(Number(n) || 0);
+    if (v > 0) return `+${v}`;
+    if (v < 0) return `−${Math.abs(v)}`;
+    return '0';
+}
+
+function karmaTone(n, deadZone = 15) {
+    if (n >= deadZone) return 'good';
+    if (n <= -deadZone) return 'evil';
+    return 'neutral';
+}
 
 const DEFAULT_SETTINGS = {
     enabled: true,
@@ -790,7 +816,7 @@ async function runLLMPrompt(promptText) {
 
     const ctx = getSTContext();
     if (typeof ctx.generateQuietPrompt === 'function') {
-        return await ctx.generateQuietPrompt(promptText, false, true);
+        return await ctx.generateQuietPrompt({ quietPrompt: promptText, quietToLoud: false, skipWIAN: true });
     }
 
     throw new Error('未找到可用的生成接口（generateQuietPrompt 不可用且未配置独立 API）。');
@@ -978,7 +1004,7 @@ function renderMessageKarmaBadge(messageId, recordedSeeds, triggeredSettlements)
 
     const badge = document.createElement('div');
     badge.className = 'st-karma-chat-badge';
-    badge.innerHTML = `<span class="st-karma-chat-badge-title">因果回响</span>${parts.join(' ')}`;
+    badge.innerHTML = `<span class="st-karma-chat-badge-title">回响</span>${parts.join(' ')}`;
     msgEl.insertAdjacentElement('afterend', badge);
 }
 
@@ -1105,7 +1131,7 @@ function renderModalIfOpen() {
 }
 
 /**
- * 渲染毛玻璃仪表盘主视图
+ * 渲染主面板（新中式账簿视图）
  */
 function renderKarmaModalContent() {
     const bodyEl = document.getElementById('st-karma-modal-body');
@@ -1121,149 +1147,158 @@ function renderKarmaModalContent() {
         charRoulettes[c.name] = calculateCharacterRoulette(c, currentTurn);
     }
 
-    // 1. 待生效指令通知栏
+    // 1. 待生效告示
     let pendingHtml = '';
     if (ledger.pendingSettlements && ledger.pendingSettlements.length > 0) {
         const itemsHtml = ledger.pendingSettlements.map(p => {
-            const typeBadge = p.direction === 'retribution' ? '报应反噬' : '正向回馈';
-            return `<div style="margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            const typeLabel = p.direction === 'retribution' ? '报应' : '回馈';
+            return `<div class="ke-notice-item">
                 <div>
-                    <strong style="color:var(--ke-text-main);">${typeBadge} · ${escapeHtml(p.character)}（${escapeHtml(p.severityName)}）</strong><br/>
-                    <span style="font-size:11.5px; color:var(--ke-text-muted);">关联伏笔：${escapeHtml(p.deedsText)}</span>
+                    <b>${escapeHtml(p.character)}</b> · ${typeLabel}<span class="ke-muted">（${escapeHtml(p.severityName)}）</span>
+                    <div class="ke-notice-deeds">${escapeHtml(p.deedsText)}</div>
                 </div>
-                <button class="st-karma-btn karma-btn-danger st-karma-cancel-pending" data-id="${escapeHtml(p.id)}">取消触发</button>
+                <button class="st-karma-btn karma-btn-danger st-karma-cancel-pending" data-id="${escapeHtml(p.id)}">撤回</button>
             </div>`;
         }).join('');
 
         pendingHtml = `<div class="st-karma-pending-directive">
-            <div style="font-weight:600; color:var(--ke-echo);">回响检定已命中 · 将在下一轮回复中融入剧情</div>
-            ${itemsHtml}
+            <span class="ke-seal ke-seal-indigo">将至</span>
+            <div class="ke-notice-body">
+                <div class="ke-notice-title">回响已至 · 下一轮剧情将自然呈现</div>
+                ${itemsHtml}
+            </div>
         </div>`;
     }
 
-    // 2. 角色卡片网格
+    // 2. 角色卡
     let cardsHtml = '';
     if (chars.length === 0) {
         cardsHtml = `<div class="st-karma-empty-state">
-            当前对话尚无角色因果记录<br/>
-            <span style="font-size:12px;">可直接开始推进剧情，或点击上方 <strong style="color:var(--ke-accent);">「扫描世界书与前史」</strong> 提取角色初始伏笔，也可在下方手动录入。</span>
+            ${INK_MOUNTAIN_SVG}
+            <div class="ke-empty-title">簿上尚无一笔</div>
+            <div class="ke-empty-sub">推进剧情，或点击上方 <strong>「扫描世界书与前史」</strong>，<br/>让第一笔因果落墨。</div>
         </div>`;
     } else {
         cardsHtml = `<div class="st-karma-char-grid">${chars.map(c => {
             const r = charRoulettes[c.name];
             const tier = getKarmaTierInfo(c.totalKarma);
-            const scoreSign = c.totalKarma > 0 ? `+${c.totalKarma}` : `${c.totalKarma}`;
-            const tagClass = c.totalKarma >= 15 ? 'tag-good' : (c.totalKarma <= -15 ? 'tag-evil' : 'tag-neutral');
-            const cardAlertClass = r.triggerChance >= 50
+            const tone = karmaTone(c.totalKarma);
+            const sealTone = tone === 'good' ? 'ke-seal-celadon' : (tone === 'evil' ? 'ke-seal-cinnabar' : 'ke-seal-neutral');
+            const alertClass = r.triggerChance >= 50
                 ? (r.dominantType === 'retribution' ? 'karma-card-evil-alert' : 'karma-card-good-alert')
                 : '';
 
-            const goodWidth = c.totalKarma > 0 ? Math.min(50, Math.round((c.totalKarma / 100) * 50)) : 0;
-            const evilWidth = c.totalKarma < 0 ? Math.min(50, Math.round((Math.abs(c.totalKarma) / 100) * 50)) : 0;
+            // 因果秤：-100 ~ +100 映射到 0% ~ 100%
+            const pos = Math.min(98, Math.max(2, 50 + (Number(c.totalKarma) || 0) / 2));
+            const fillLeft = Math.min(50, pos);
+            const fillWidth = Math.abs(pos - 50);
+            const ticks = [0, 25, 50, 75, 100]
+                .map(t => `<i class="ke-tick${t === 50 ? ' mid' : ''}" style="left:${t}%"></i>`)
+                .join('');
 
-            const unsettledSeeds = (c.seeds || []).slice().reverse().slice(0, 8);
-            const seedsHtml = unsettledSeeds.length === 0
-                ? `<div style="font-size:11px; color:var(--ke-text-muted);">暂无记录</div>`
-                : unsettledSeeds.map(s => {
-                    const deltaSign = s.delta > 0 ? `+${s.delta}` : `${s.delta}`;
-                    const deltaCls = s.delta > 0 ? 'delta-good' : 'delta-evil';
+            const seeds = (c.seeds || []).slice().reverse().slice(0, 8);
+            const seedsHtml = seeds.length === 0
+                ? `<div class="ke-empty-line">暂无伏笔</div>`
+                : seeds.map(s => {
+                    const sTone = s.delta > 0 ? 'good' : 'evil';
                     const waited = Math.max(0, currentTurn - (s.turn || 0));
                     const reqWait = s.minDelayTurns !== undefined ? s.minDelayTurns : settings.latentTurns;
-                    const statusLabel = s.settled
-                        ? '已结算'
-                        : (waited >= reqWait ? '待触发' : `潜伏 ${waited}/${reqWait}`);
-
-                    return `<div class="st-karma-seed-item ${s.settled ? 'seed-settled' : ''}">
-                        <div>
-                            <span style="color:var(--ke-text-muted);">[T${s.turn || 0}]</span>
-                            ${escapeHtml(s.deed)}
-                            ${s.ruleRef ? `<span style="color:var(--ke-text-muted);">(${escapeHtml(s.ruleRef)})</span>` : ''}
-                            <span style="font-size:10.5px; color:var(--ke-echo); margin-left:4px;">· ${statusLabel}</span>
+                    const state = s.settled ? 'settled' : (waited >= reqWait ? 'mature' : 'latent');
+                    const stateLabel = state === 'settled' ? '已结' : (state === 'mature' ? '待发' : `潜伏 ${waited}/${reqWait}`);
+                    return `<div class="ke-seed ${sTone} ${state}">
+                        <i class="ke-seed-dot"></i>
+                        <div class="ke-seed-body">
+                            <span class="ke-seed-turn">T${s.turn || 0}</span>${escapeHtml(s.deed)}${s.ruleRef ? `<span class="ke-muted"> · ${escapeHtml(s.ruleRef)}</span>` : ''}<span class="ke-seed-state">${stateLabel}</span>
                         </div>
-                        <span class="st-karma-seed-delta ${deltaCls}">${deltaSign}</span>
+                        <span class="ke-seed-delta">${formatKarma(s.delta)}</span>
                     </div>`;
                 }).join('');
 
-            const rouletteStatusText = r.inCooldown
-                ? `冷却期内（剩余 ${r.cooldownRemaining} 回合）`
+            const checkNote = r.inCooldown
+                ? `冷却中，还需 ${r.cooldownRemaining} 回合`
                 : (r.triggerChance > 0
-                    ? `下回合触发概率 <strong style="color:var(--ke-accent);">${r.triggerChance}%</strong>（${r.dominantType === 'retribution' ? '报应' : '回馈'}池 ${r.dominantValue}）`
-                    : `酝酿中（已成熟 -${r.matureEvil} / +${r.matureGood} · 潜伏中 -${r.latentEvil} / +${r.latentGood}）`);
+                    ? `${r.dominantType === 'retribution' ? '报应' : '回馈'}池已蓄 ${r.dominantValue}，每回合自动检定`
+                    : `酝酿中 · 已成熟 ${formatKarma(-r.matureEvil)} / ${formatKarma(r.matureGood)} · 潜伏 ${formatKarma(-r.latentEvil)} / ${formatKarma(r.latentGood)}`);
 
-            return `<div class="st-karma-char-card ${cardAlertClass}">
-                <div class="st-karma-char-header">
-                    <div class="st-karma-char-name">
-                        <span>${escapeHtml(c.name)}</span>
-                        <span class="st-karma-tag ${tagClass}">${escapeHtml(tier.title)} ${scoreSign}</span>
+            return `<div class="st-karma-char-card ${alertClass}">
+                <div class="ke-card-name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</div>
+                <div class="ke-card-main">
+                    <div class="ke-card-head">
+                        <div class="ke-card-score tone-${tone}">${formatKarma(c.totalKarma)}<span>${escapeHtml(tier.aura)}</span></div>
+                        <span class="ke-seal ${sealTone}">${escapeHtml(tier.title)}</span>
+                        <button class="ke-icon-btn st-karma-delete-char" data-char="${escapeHtml(c.name)}" title="移除该角色记录">✕</button>
                     </div>
-                    <button class="st-karma-btn st-karma-delete-char" data-char="${escapeHtml(c.name)}" title="移除该角色记录" style="padding:3px 7px; font-size:11px;">✕</button>
-                </div>
 
-                <div class="st-karma-meter-wrap">
-                    <div class="st-karma-meter-labels">
-                        <span>负面累积 ${c.evilAccumulated || 0}</span>
-                        <span>${escapeHtml(tier.aura)}</span>
-                        <span>正向累积 ${c.goodAccumulated || 0}</span>
+                    <div class="ke-scale">
+                        <div class="ke-scale-labels">
+                            <span>负 ${c.evilAccumulated || 0}</span>
+                            <span class="ke-scale-name">因果秤</span>
+                            <span>正 ${c.goodAccumulated || 0}</span>
+                        </div>
+                        <div class="ke-scale-track tone-${tone}">
+                            ${ticks}
+                            <div class="ke-scale-fill" style="left:${fillLeft}%; width:${fillWidth}%;"></div>
+                            <div class="ke-scale-weight" style="left:${pos}%;"></div>
+                        </div>
                     </div>
-                    <div class="st-karma-meter-track">
-                        <div class="st-karma-meter-center"></div>
-                        <div class="st-karma-meter-fill-evil" style="width:${evilWidth}%;"></div>
-                        <div class="st-karma-meter-fill-good" style="width:${goodWidth}%;"></div>
+
+                    <div class="ke-check">
+                        <div class="ke-check-row">
+                            <span>回响检定</span>
+                            <span class="ke-check-val ${r.triggerChance > 0 ? '' : 'is-zero'}">${r.triggerChance}%</span>
+                        </div>
+                        <div class="ke-check-track"><div class="ke-check-fill" style="width:${r.triggerChance}%;"></div></div>
+                        <div class="ke-check-note">${checkNote}</div>
                     </div>
-                </div>
 
-                <div class="st-karma-roulette-box">
-                    <span>回响检定：${rouletteStatusText}</span>
-                </div>
+                    <div class="ke-seeds">${seedsHtml}</div>
 
-                <div style="font-size:11.5px; font-weight:600; color:var(--ke-text-secondary);">因果伏笔记录</div>
-                <div class="st-karma-seeds-list">${seedsHtml}</div>
-
-                <div class="st-karma-btn-bar" style="justify-content:flex-end; margin-top:auto;">
-                    <button class="st-karma-btn karma-btn-danger st-karma-force-retribution" data-char="${escapeHtml(c.name)}">触发报应</button>
-                    <button class="st-karma-btn karma-btn-good st-karma-force-blessing" data-char="${escapeHtml(c.name)}">触发回馈</button>
+                    <div class="ke-card-actions">
+                        <button class="st-karma-btn karma-btn-danger st-karma-force-retribution" data-char="${escapeHtml(c.name)}">触发报应</button>
+                        <button class="st-karma-btn karma-btn-good st-karma-force-blessing" data-char="${escapeHtml(c.name)}">触发回馈</button>
+                    </div>
                 </div>
             </div>`;
         }).join('')}</div>`;
     }
 
-    // 3. 动态日志流
-    const logsHtml = (ledger.historyLogs || []).slice(0, 15).map(log => {
+    // 3. 因果流水
+    const logsHtml = (ledger.historyLogs || []).slice(0, 20).map(log => {
         if (log.type === 'settlement') {
-            const label = log.direction === 'retribution' ? '[报应结算]' : '[回馈结算]';
-            return `<div class="st-karma-log-entry log-retribution">
-                <div><strong>[T${log.turn}] ${label} ${escapeHtml(log.character)}</strong>（${escapeHtml(log.severityName)}）：${escapeHtml(log.deedsText)}</div>
-                <span style="color:var(--ke-text-muted); white-space:nowrap;">${escapeHtml(log.timestamp || '')}</span>
+            const isRet = log.direction === 'retribution';
+            return `<div class="ke-log ke-log-settle">
+                <span class="ke-seal ke-seal-sm ${isRet ? 'ke-seal-cinnabar' : 'ke-seal-celadon'}">${isRet ? '报' : '馈'}</span>
+                <span class="ke-log-turn">T${log.turn}</span>
+                <div class="ke-log-text"><b>${escapeHtml(log.character)}</b> · ${escapeHtml(log.severityName)}<span class="ke-muted">　${escapeHtml(log.deedsText)}</span></div>
+                <span class="ke-log-time">${escapeHtml(log.timestamp || '')}</span>
             </div>`;
         }
-        const sign = log.delta > 0 ? `+${log.delta}` : `${log.delta}`;
-        const color = log.delta > 0 ? 'var(--ke-good)' : 'var(--ke-evil)';
-        return `<div class="st-karma-log-entry">
-            <div>
-                <strong>[T${log.turn}] ${escapeHtml(log.character)}</strong> · ${escapeHtml(log.deed)}
-                ${log.ruleRef ? `<span style="color:var(--ke-text-muted);">（${escapeHtml(log.ruleRef)}）</span>` : ''}
-            </div>
-            <span style="color:${color}; font-weight:600; white-space:nowrap;">${sign}</span>
+        const tone = log.delta > 0 ? 'good' : 'evil';
+        return `<div class="ke-log">
+            <i class="ke-log-dot tone-${tone}"></i>
+            <span class="ke-log-turn">T${log.turn}</span>
+            <div class="ke-log-text"><b>${escapeHtml(log.character)}</b> · ${escapeHtml(log.deed)}${log.ruleRef ? `<span class="ke-muted">（${escapeHtml(log.ruleRef)}）</span>` : ''}</div>
+            <span class="ke-log-amt tone-${tone}">${formatKarma(log.delta)}</span>
         </div>`;
-    }).join('') || '<div style="font-size:12px; color:var(--ke-text-muted);">暂无历史记录</div>';
+    }).join('') || '<div class="ke-empty-line">尚无流水</div>';
 
     const modeLabel = settings.judgeMode === 'hybrid'
-        ? '混合判定'
-        : (settings.judgeMode === 'inline' ? '内嵌标签' : '后台静默');
+        ? '混合'
+        : (settings.judgeMode === 'inline' ? '内嵌' : '静默');
 
     bodyEl.innerHTML = `
         <div class="st-karma-status-banner">
-            <div class="st-karma-stat-pills">
-                <span class="st-karma-stat-pill">当前进度 <strong>第 ${currentTurn} 回合</strong></span>
-                <span class="st-karma-stat-pill">潜伏期 <strong>${settings.latentTurns} 回合</strong></span>
-                <span class="st-karma-stat-pill">起检阈值 <strong>±${settings.triggerThreshold}</strong></span>
-                <span class="st-karma-stat-pill">模式 <strong>${modeLabel}</strong></span>
+            <div class="ke-stats">
+                <div class="ke-stat"><span class="ke-stat-label">回合</span><span class="ke-stat-val">${currentTurn}</span></div>
+                <div class="ke-stat"><span class="ke-stat-label">潜伏</span><span class="ke-stat-val">${settings.latentTurns}<span class="ke-stat-unit">回合</span></span></div>
+                <div class="ke-stat"><span class="ke-stat-label">阈值</span><span class="ke-stat-val">±${settings.triggerThreshold}</span></div>
+                <div class="ke-stat"><span class="ke-stat-label">判定</span><span class="ke-stat-val">${modeLabel}</span></div>
             </div>
             <div class="st-karma-btn-bar">
                 <button id="st-karma-btn-scan-lore" class="st-karma-btn karma-btn-primary">扫描世界书与前史</button>
-                <button id="st-karma-btn-judge-now" class="st-karma-btn">判定最新回合</button>
-                <button id="st-karma-btn-roll-now" class="st-karma-btn">执行概率检定</button>
-                <button id="st-karma-btn-reset-chat" class="st-karma-btn karma-btn-danger">重置本局</button>
+                <button id="st-karma-btn-judge-now" class="st-karma-btn">判定本回合</button>
+                <button id="st-karma-btn-roll-now" class="st-karma-btn">执行检定</button>
+                <button id="st-karma-btn-reset-chat" class="st-karma-btn karma-btn-danger">重置</button>
             </div>
         </div>
 
@@ -1271,17 +1306,17 @@ function renderKarmaModalContent() {
 
         ${cardsHtml}
 
-        <div class="st-karma-section-title">手动添加因果记录</div>
+        <div class="st-karma-section-title">手录一笔</div>
         <div class="st-karma-manual-form">
-            <input id="st-karma-manual-char" type="text" placeholder="角色姓名 (如: 陆沉 / 林晚)" style="width:140px;" />
-            <input id="st-karma-manual-delta" type="number" value="-25" step="5" title="正数为善因，负数为恶因" style="width:82px;" />
-            <input id="st-karma-manual-deed" type="text" placeholder="事件简述 (如: 违背承诺暗中设局 / 危急关头挺身相助)" style="flex:1; min-width:190px;" />
-            <input id="st-karma-manual-rule" type="text" placeholder="关联设定/备注 (选填)" style="width:145px;" />
-            <input id="st-karma-manual-delay" type="number" value="${settings.latentTurns}" min="0" max="20" title="潜伏回合数" style="width:68px;" />
-            <button id="st-karma-manual-add-btn" class="st-karma-btn karma-btn-primary">添加记录</button>
+            <input id="st-karma-manual-char" type="text" placeholder="角色姓名" style="width:120px;" />
+            <input id="st-karma-manual-delta" type="number" value="-25" step="5" title="正数为善因，负数为恶因" style="width:64px;" />
+            <input id="st-karma-manual-deed" type="text" placeholder="所作所为（如：违背承诺暗中设局 / 危急关头挺身相助）" style="flex:1; min-width:200px;" />
+            <input id="st-karma-manual-rule" type="text" placeholder="关联设定（选填）" style="width:130px;" />
+            <input id="st-karma-manual-delay" type="number" value="${settings.latentTurns}" min="0" max="20" title="潜伏回合数" style="width:48px;" />
+            <button id="st-karma-manual-add-btn" class="st-karma-btn karma-btn-primary">落笔</button>
         </div>
 
-        <div class="st-karma-section-title">因果动态流</div>
+        <div class="st-karma-section-title">因果流水</div>
         <div class="st-karma-log-list">${logsHtml}</div>
     `;
 
@@ -1518,7 +1553,7 @@ function initUI() {
         const fab = document.createElement('div');
         fab.id = 'st-karma-fab';
         fab.title = '因果回响 · Karma Echo';
-        fab.innerHTML = `${ECHO_ICON_SVG}<span class="karma-fab-badge" style="display:none;">0</span>`;
+        fab.innerHTML = `<span class="ke-fab-char">因</span><span class="karma-fab-badge" style="display:none;">0</span>`;
         fab.addEventListener('click', openKarmaModal);
         document.body.appendChild(fab);
     }
@@ -1529,17 +1564,21 @@ function initUI() {
         modalBackdrop.innerHTML = `
             <div class="st-karma-modal">
                 <div class="st-karma-modal-header">
+                    ${INK_MOUNTAIN_SVG}
                     <div class="st-karma-modal-brand">
-                        <div class="st-karma-brand-mark">${ECHO_ICON_SVG}</div>
+                        ${BRAND_SEAL_HTML}
                         <div>
                             <div class="st-karma-modal-title">
                                 因果回响
                                 <span class="st-karma-modal-title-en">Karma Echo</span>
                             </div>
-                            <div class="st-karma-modal-subtitle">凡有所为，皆有回响 · 延时因果与剧情回旋镖追踪</div>
+                            <div class="st-karma-modal-subtitle">凡有所为 · 皆有回响</div>
                         </div>
                     </div>
-                    <button id="st-karma-modal-close" class="st-karma-btn">关闭</button>
+                    <div class="ke-header-right">
+                        <div class="ke-vertical-note">延时因果<br/>剧情回旋</div>
+                        <button id="st-karma-modal-close" class="st-karma-btn ke-close-btn" title="关闭">✕</button>
+                    </div>
                 </div>
                 <div id="st-karma-modal-body" class="st-karma-modal-body"></div>
             </div>
